@@ -323,21 +323,29 @@ export default function App() {
 
   const enabledStaff = settings.staff.filter((s) => s.enabled);
 
-  const gasScript = `// Google Apps Script - スプレッドシートに貼り付けてデプロイ
+  const gasScript = `// Google Apps Script - 「R8年 チーム中山原本」の「日報」シートに記録
 // アクセスできるユーザー：全員（CORS対応）
-function doPost(e) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+var SHEET_ID = '1KB3jrOsESJEjoprC9KgLHCSzUMYWqX7bbMSMS-BLvic';
+var SHEET_NAME = '日報';
 
-  if (sheet.getLastRow() === 0) {
+function doPost(e) {
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var sheet = ss.getSheetByName(SHEET_NAME);
+
+  // 「日報」シートがなければ自動作成
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAME);
     sheet.appendRow([
-      'タイムスタンプ','名前','日付','研修モード','研修同行者','元請先','件数','元請金額',
+      'タイムスタンプ','名前','日付','研修モード','研修同行者','センター','件数','元請金額',
       '内機台','内機円','外機台','外機円','ロボ台','ロボ円',
       'RF台','RF円','水回り台','水回り円','その他円','その他詳細',
       'インセ台','インセ円','合計','マン数','相手名','報告文'
     ]);
+    // ヘッダー行を太字に
+    sheet.getRange(1, 1, 1, 26).setFontWeight('bold');
   }
 
-  const d = JSON.parse(e.postData.contents);
+  var d = JSON.parse(e.postData.contents);
   sheet.appendRow([
     d.timestamp, d.name, d.date, d.traineeMode, d.traineeName, d.origin, d.count, d.originAmount,
     d.naikiCount, d.naikiAmount, d.gaikiCount, d.gaikiAmount,
