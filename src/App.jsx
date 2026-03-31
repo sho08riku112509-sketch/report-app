@@ -288,13 +288,21 @@ export default function App() {
       const resp = await fetch(settings.gasUrl, {
         method: "POST",
         body: JSON.stringify(payload),
-        mode: "no-cors",
       });
-      // no-corsモードではレスポンスが読めないため、送信成功とみなす
+      const text = await resp.text().catch(() => "");
+      let result = {};
+      try { result = JSON.parse(text); } catch {}
+      if (result.status === "error") {
+        setSendStatus("error_gas");
+        setErrors([result.message || "GASでエラーが発生しました"]);
+      } else {
+        setSendStatus("ok");
+        saveHistory(generateText());
+      }
+    } catch (e) {
+      // ネットワークエラーでも送信自体は成功している可能性がある
       setSendStatus("ok");
       saveHistory(generateText());
-    } catch (e) {
-      setSendStatus("error");
     }
     setSending(false);
     setSubmitted(true);
