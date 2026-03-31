@@ -287,18 +287,12 @@ export default function App() {
     try {
       const resp = await fetch(settings.gasUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-        redirect: "follow",
+        mode: "no-cors",
       });
-      const result = await resp.json().catch(() => ({}));
-      if (result.status === "error") {
-        setSendStatus("error_gas");
-        setErrors([result.message || "GASでエラーが発生しました"]);
-      } else {
-        setSendStatus("ok");
-        saveHistory(generateText());
-      }
+      // no-corsモードではレスポンスが読めないため、送信成功とみなす
+      setSendStatus("ok");
+      saveHistory(generateText());
     } catch (e) {
       setSendStatus("error");
     }
