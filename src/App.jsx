@@ -434,30 +434,44 @@ function doPost(e) {
     var day = parseInt(dayMatch[1]);
     var row = 5 + day; // 6行目=1日, 7行目=2日, ...
 
+    // 行の高さを保存
+    var originalHeight = sheet.getRowHeight(row);
+
+    // 抗菌金額をその他から差し引く（報告ではその他に含めているため）
+    var kokinAmt = d.kokinAmount || 0;
+    var sonotaAmt = d.sonotaAmount || 0;
+    if (kokinAmt > 0 && sonotaAmt >= kokinAmt) {
+      sonotaAmt = sonotaAmt - kokinAmt;
+    }
+
     // 件数・基本売上を書き込み
     if (COL.count > 0) sheet.getRange(row, COL.count).setValue(d.count);
     if (COL.baseAmount > 0) sheet.getRange(row, COL.baseAmount).setValue(d.originAmount);
 
-    // 追加売り上げを書き込み
-    var fields = [
-      ['naikiCount','naikiAmount'],['gaikiCount','gaikiAmount'],
-      ['roboCount','roboAmount'],['rfCount','rfAmount'],
-      ['mizuCount','mizuAmount'],['kokinCount','kokinAmount'],
-      ['sonotaAmount'],['inceCount','inceAmount']
-    ];
+    // 追加売り上げを書き込み（0は書き込まない → 数式を保護）
+    var writeIfNonZero = function(col, val) {
+      if (col > 0 && val !== undefined && val !== 0 && val !== '') {
+        sheet.getRange(row, col).setValue(val);
+      }
+    };
 
-    fields.forEach(function(pair) {
-      pair.forEach(function(key) {
-        if (COL[key] > 0 && d[key] !== undefined && d[key] !== 0 && d[key] !== '') {
-          sheet.getRange(row, COL[key]).setValue(d[key]);
-        }
-      });
-    });
+    writeIfNonZero(COL.naikiCount, d.naikiCount);
+    writeIfNonZero(COL.naikiAmount, d.naikiAmount);
+    writeIfNonZero(COL.gaikiCount, d.gaikiCount);
+    writeIfNonZero(COL.gaikiAmount, d.gaikiAmount);
+    writeIfNonZero(COL.roboCount, d.roboCount);
+    writeIfNonZero(COL.roboAmount, d.roboAmount);
+    writeIfNonZero(COL.rfCount, d.rfCount);
+    writeIfNonZero(COL.rfAmount, d.rfAmount);
+    writeIfNonZero(COL.mizuCount, d.mizuCount);
+    writeIfNonZero(COL.mizuAmount, d.mizuAmount);
+    writeIfNonZero(COL.kokinCount, d.kokinCount);
+    writeIfNonZero(COL.kokinAmount, kokinAmt);
+    writeIfNonZero(COL.sonotaAmount, sonotaAmt);
+    writeIfNonZero(COL.inceAmount, d.inceAmount);
 
-    // MEMO列に報告文（オプション）
-    if (COL.memo > 0) {
-      sheet.getRange(row, COL.memo).setValue(d.reportText);
-    }
+    // 行の高さを元に戻す
+    sheet.setRowHeight(row, originalHeight);
 
     return res({ status: 'ok', message: tabName + ' の ' + day + '日に記録しました' });
 
