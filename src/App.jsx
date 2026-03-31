@@ -18,7 +18,6 @@ const addItems = [
   { key: "robo", label: "ロボ", hasCount: true },
   { key: "rf", label: "RF", hasCount: true },
   { key: "mizu", label: "水回り", hasCount: true },
-  { key: "kokin", label: "抗菌", hasCount: true },
   { key: "sonota", label: "その他", hasCount: false, hasDetail: true },
   { key: "ince", label: "インセ", hasCount: true },
 ];
@@ -34,6 +33,8 @@ const defaultForm = {
   additions: Object.fromEntries(
     addItems.map((i) => [i.key, { count: "", amount: "", enabled: false, ...(i.hasDetail ? { detail: "" } : {}) }])
   ),
+  kokinCount: "",
+  kokinAmount: "",
   manType: "1",
   partnerName: "",
   traineeMode: false,
@@ -271,8 +272,8 @@ export default function App() {
       rfAmount: form.additions.rf.enabled ? formatNum(form.additions.rf.amount) : 0,
       mizuCount: form.additions.mizu.enabled ? formatNum(form.additions.mizu.count) : 0,
       mizuAmount: form.additions.mizu.enabled ? formatNum(form.additions.mizu.amount) : 0,
-      kokinCount: form.additions.kokin.enabled ? formatNum(form.additions.kokin.count) : 0,
-      kokinAmount: form.additions.kokin.enabled ? formatNum(form.additions.kokin.amount) : 0,
+      kokinCount: formatNum(form.kokinCount),
+      kokinAmount: formatNum(form.kokinAmount),
       sonotaAmount: form.additions.sonota.enabled ? formatNum(form.additions.sonota.amount) : 0,
       sonotaDetail: form.additions.sonota.enabled ? (form.additions.sonota.detail || "") : "",
       inceCount: form.additions.ince.enabled ? formatNum(form.additions.ince.count) : 0,
@@ -619,7 +620,7 @@ function doPostBackup(e) {
                   <Input
                     value={form.count}
                     onChange={(v) => setForm((f) => ({ ...f, count: v }))}
-                    placeholder="3"
+                    placeholder=""
                     type="number"
                     suffix="件"
                   />
@@ -628,7 +629,7 @@ function doPostBackup(e) {
                   <MoneyInput
                     value={form.originAmount}
                     onChange={(v) => setForm((f) => ({ ...f, originAmount: v }))}
-                    placeholder="42,000"
+                    placeholder=""
                   />
                 </Row>
               </Section>
@@ -652,7 +653,7 @@ function doPostBackup(e) {
                               <Input
                                 value={a.count}
                                 onChange={(v) => updateAddition(item.key, "count", v)}
-                                placeholder="0"
+                                placeholder=""
                                 type="number"
                                 suffix="台"
                               />
@@ -671,7 +672,7 @@ function doPostBackup(e) {
                             <MoneyInput
                               value={a.amount}
                               onChange={(v) => updateAddition(item.key, "amount", v)}
-                              placeholder="0"
+                              placeholder=""
                             />
                           </Row>
                         </div>
@@ -680,6 +681,45 @@ function doPostBackup(e) {
                   );
                 })}
               </Section>
+            )}
+
+            {/* 抗菌（スプレッド転記用） - 研修モードでは非表示 */}
+            {!form.traineeMode && (
+              <div style={{
+                background: "#1a1a1a",
+                borderRadius: 12,
+                padding: "16px",
+                border: "1px solid #2a2a2a",
+              }}>
+                <div style={{
+                  fontSize: 11,
+                  color: "#888",
+                  fontWeight: 700,
+                  letterSpacing: 2,
+                  marginBottom: 12,
+                }}>
+                  抗菌（スプレッド転記用）
+                </div>
+                <div style={{ fontSize: 12, color: "#555", marginBottom: 10, lineHeight: 1.6 }}>
+                  報告文には出ません。スプレッドシートの抗菌列に転記されます。
+                </div>
+                <Row label="台数">
+                  <Input
+                    value={form.kokinCount}
+                    onChange={(v) => setForm((f) => ({ ...f, kokinCount: v }))}
+                    placeholder=""
+                    type="number"
+                    suffix="台"
+                  />
+                </Row>
+                <Row label="金額">
+                  <MoneyInput
+                    value={form.kokinAmount}
+                    onChange={(v) => setForm((f) => ({ ...f, kokinAmount: v }))}
+                    placeholder=""
+                  />
+                </Row>
+              </div>
             )}
 
             {/* 合計 - 研修モードでは非表示 */}
