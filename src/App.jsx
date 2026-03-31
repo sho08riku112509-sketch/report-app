@@ -124,7 +124,6 @@ export default function App() {
   const generateText = useCallback(() => {
     const lines = [];
     lines.push(settings.name);
-    if (settings.centerName) lines.push(settings.centerName);
     lines.push(form.date);
 
     if (form.traineeMode) {
