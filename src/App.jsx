@@ -345,25 +345,25 @@ var SHEET_ID = '1KB3jrOsESJEjoprC9KgLHCSzUMYWqX7bbMSMS-BLvic';
 // showHeaders() の結果を見て、実際の列番号に合わせてください
 // 列番号は A=1, B=2, C=3... です
 var COL = {
-  count:       5,   // E列: 件数（結果）
+  count:       5,   // E列: 件数
   baseAmount:  6,   // F列: 基本売上
   // --- 追加売り上げ ---
-  naikiCount:  0,   // 内機 台数（0=使わない）
-  naikiAmount: 0,   // 内機 金額
-  gaikiCount:  0,   // 外機 台数
-  gaikiAmount: 0,   // 外機 金額
-  roboCount:   0,   // ロボ 台数
-  roboAmount:  0,   // ロボ 金額
-  rfCount:     0,   // RF 台数
-  rfAmount:    0,   // RF 金額
-  mizuCount:   0,   // 水回り 台数
-  mizuAmount:  0,   // 水回り 金額
-  kokinCount:  0,   // 抗菌 台数
-  kokinAmount: 0,   // 抗菌 金額
-  sonotaAmount:0,   // その他 金額
-  inceCount:   0,   // インセ 台数
-  inceAmount:  0,   // インセ 金額
-  memo:        0,   // MEMO列
+  naikiCount:  12,  // L列: 内機 台数
+  naikiAmount: 13,  // M列: 内機 金額
+  gaikiCount:  14,  // N列: 外機 台数
+  gaikiAmount: 15,  // O列: 外機 金額
+  roboCount:   16,  // P列: ロボ 台数
+  roboAmount:  17,  // Q列: ロボ 金額
+  rfCount:     18,  // R列: RF 台数
+  rfAmount:    19,  // S列: RF 金額
+  mizuCount:   20,  // T列: 水回り 台数
+  mizuAmount:  21,  // U列: 水回り 金額
+  kokinCount:  22,  // V列: 抗菌 台数
+  kokinAmount: 23,  // W列: 抗菌 金額
+  sonotaAmount:25,  // Y列: その他 金額
+  inceCount:   26,  // Z列: インセ 台数
+  inceAmount:  27,  // AA列: インセ 金額
+  memo:        36,  // AJ列: MEMO
 };
 
 // ===== ヘッダー確認用（初回だけ実行） =====
@@ -401,12 +401,22 @@ function doPost(e) {
     var ss = SpreadsheetApp.openById(SHEET_ID);
 
     // シートタブ名（例：【濱口】）
-    var tabName = d.sheetTab;
+    var tabName = (d.sheetTab || '').trim();
     if (!tabName) {
       return res({ status: 'error', message: 'sheetTab が未設定です。設定画面でシート名を入力してください。' });
     }
 
+    // 完全一致で探す。見つからなければ前後スペース無視で探す
     var sheet = ss.getSheetByName(tabName);
+    if (!sheet) {
+      var allSheets = ss.getSheets();
+      for (var i = 0; i < allSheets.length; i++) {
+        if (allSheets[i].getName().trim() === tabName) {
+          sheet = allSheets[i];
+          break;
+        }
+      }
+    }
     if (!sheet) {
       return res({ status: 'error', message: 'シート「' + tabName + '」が見つかりません。' });
     }
