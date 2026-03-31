@@ -92,7 +92,9 @@ export default function App() {
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) setSettings({ ...defaultSettings, ...JSON.parse(saved) });
+      const parsed = { ...defaultSettings, ...JSON.parse(saved) };
+      setSettings(parsed);
+      if (parsed.centerName) setForm(f => ({ ...f, origin: parsed.centerName }));
     } catch {}
     try {
       const h = localStorage.getItem(HISTORY_KEY);
