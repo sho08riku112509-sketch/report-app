@@ -363,8 +363,9 @@ var COL = {
   kokinCount:  22,  // V列: 抗菌 台数
   kokinAmount: 23,  // W列: 抗菌 金額
   sonotaAmount:25,  // Y列: その他 金額
-  inceCount:   26,  // Z列: インセ 台数
-  inceAmount:  27,  // AA列: インセ 金額
+  inceCount:   0,   // インセ台数（列なし）
+  inceAmount:  26,  // Z列: インセ 金額
+  // ※ AA列(27) = 追加合計（数式）→ 書き込み禁止！
   memo:        36,  // AJ列: MEMO
 };
 
@@ -447,7 +448,7 @@ function doPost(e) {
 
     fields.forEach(function(pair) {
       pair.forEach(function(key) {
-        if (COL[key] > 0 && d[key] !== undefined) {
+        if (COL[key] > 0 && d[key] !== undefined && d[key] !== 0 && d[key] !== '') {
           sheet.getRange(row, COL[key]).setValue(d[key]);
         }
       });
