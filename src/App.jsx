@@ -8,6 +8,7 @@ const defaultSettings = {
   name: "",
   gasUrl: "",
   centerName: "",
+  sheetTab: "",
   staff: [],
 };
 
@@ -17,6 +18,7 @@ const addItems = [
   { key: "robo", label: "ロボ", hasCount: true },
   { key: "rf", label: "RF", hasCount: true },
   { key: "mizu", label: "水回り", hasCount: true },
+  { key: "kokin", label: "抗菌", hasCount: true },
   { key: "sonota", label: "その他", hasCount: false, hasDetail: true },
   { key: "ince", label: "インセ", hasCount: true },
 ];
@@ -179,6 +181,7 @@ export default function App() {
       if (!form.traineeName.trim()) errs.push("研修同行者の名前を入力してください");
       return errs;
     }
+    if (!settings.sheetTab.trim()) errs.push("設定画面でシート名（例：【濱口】）を入力してください");
     if (!form.origin.trim()) errs.push("センターを入力してください");
     if (!form.count) errs.push("件数を入力してください");
     if (!form.originAmount) errs.push("金額を入力してください");
@@ -251,6 +254,7 @@ export default function App() {
     const payload = {
       timestamp: new Date().toISOString(),
       name: settings.name,
+      sheetTab: settings.sheetTab,
       date: form.date,
       traineeMode: form.traineeMode,
       traineeName: form.traineeMode ? form.traineeName : "",
@@ -267,6 +271,8 @@ export default function App() {
       rfAmount: form.additions.rf.enabled ? formatNum(form.additions.rf.amount) : 0,
       mizuCount: form.additions.mizu.enabled ? formatNum(form.additions.mizu.count) : 0,
       mizuAmount: form.additions.mizu.enabled ? formatNum(form.additions.mizu.amount) : 0,
+      kokinCount: form.additions.kokin.enabled ? formatNum(form.additions.kokin.count) : 0,
+      kokinAmount: form.additions.kokin.enabled ? formatNum(form.additions.kokin.amount) : 0,
       sonotaAmount: form.additions.sonota.enabled ? formatNum(form.additions.sonota.amount) : 0,
       sonotaDetail: form.additions.sonota.enabled ? (form.additions.sonota.detail || "") : "",
       inceCount: form.additions.ince.enabled ? formatNum(form.additions.ince.count) : 0,
@@ -278,13 +284,20 @@ export default function App() {
     };
 
     try {
-      await fetch(settings.gasUrl, {
+      const resp = await fetch(settings.gasUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        redirect: "follow",
       });
-      setSendStatus("ok");
-      saveHistory(generateText());
+      const result = await resp.json().catch(() => ({}));
+      if (result.status === "error") {
+        setSendStatus("error_gas");
+        setErrors([result.message || "GASでエラーが発生しました"]);
+      } else {
+        setSendStatus("ok");
+        saveHistory(generateText());
+      }
     } catch (e) {
       setSendStatus("error");
     }
@@ -323,40 +336,146 @@ export default function App() {
 
   const enabledStaff = settings.staff.filter((s) => s.enabled);
 
-  const gasScript = `// Google Apps Script - 「R8年 チーム中山原本」の「日報」シートに記録
-// アクセスできるユーザー：全員（CORS対応）
+  const gasScript = `// Google Apps Script - 「R8年 チーム中山原本」のメンバーシートに直接記録
+// ★ 初回セットアップ：showHeaders() を実行して列位置を確認してください
 var SHEET_ID = '1KB3jrOsESJEjoprC9KgLHCSzUMYWqX7bbMSMS-BLvic';
-var SHEET_NAME = '日報';
 
-function doPost(e) {
+// ===== 列マッピング設定 =====
+// showHeaders() の結果を見て、実際の列番号に合わせてください
+// 列番号は A=1, B=2, C=3... です
+var COL = {
+  count:       5,   // E列: 件数（結果）
+  baseAmount:  6,   // F列: 基本売上
+  // --- 追加売り上げ ---
+  naikiCount:  0,   // 内機 台数（0=使わない）
+  naikiAmount: 0,   // 内機 金額
+  gaikiCount:  0,   // 外機 台数
+  gaikiAmount: 0,   // 外機 金額
+  roboCount:   0,   // ロボ 台数
+  roboAmount:  0,   // ロボ 金額
+  rfCount:     0,   // RF 台数
+  rfAmount:    0,   // RF 金額
+  mizuCount:   0,   // 水回り 台数
+  mizuAmount:  0,   // 水回り 金額
+  kokinCount:  0,   // 抗菌 台数
+  kokinAmount: 0,   // 抗菌 金額
+  sonotaAmount:0,   // その他 金額
+  inceCount:   0,   // インセ 台数
+  inceAmount:  0,   // インセ 金額
+  memo:        0,   // MEMO列
+};
+
+// ===== ヘッダー確認用（初回だけ実行） =====
+function showHeaders() {
   var ss = SpreadsheetApp.openById(SHEET_ID);
-  var sheet = ss.getSheetByName(SHEET_NAME);
+  var sheets = ss.getSheets();
+  var result = [];
 
-  // 「日報」シートがなければ自動作成
-  if (!sheet) {
-    sheet = ss.insertSheet(SHEET_NAME);
-    sheet.appendRow([
-      'タイムスタンプ','名前','日付','研修モード','研修同行者','センター','件数','元請金額',
-      '内機台','内機円','外機台','外機円','ロボ台','ロボ円',
-      'RF台','RF円','水回り台','水回り円','その他円','その他詳細',
-      'インセ台','インセ円','合計','マン数','相手名','報告文'
-    ]);
-    // ヘッダー行を太字に
-    sheet.getRange(1, 1, 1, 26).setFontWeight('bold');
+  sheets.forEach(function(sheet) {
+    var name = sheet.getName();
+    if (name.indexOf('【') !== 0) return; // メンバーシートのみ
+
+    var lastCol = sheet.getLastColumn();
+    var headers = sheet.getRange(5, 1, 1, lastCol).getValues()[0];
+    result.push('\\n=== ' + name + ' ===');
+    headers.forEach(function(h, i) {
+      if (h) result.push('  列' + (i+1) + ' (' + colLetter(i+1) + '): ' + h);
+    });
+  });
+
+  Logger.log(result.join('\\n'));
+  return result.join('\\n');
+}
+
+function colLetter(n) {
+  var s = '';
+  while (n > 0) { n--; s = String.fromCharCode(65 + n % 26) + s; n = Math.floor(n / 26); }
+  return s;
+}
+
+// ===== メイン：日報データ受信 =====
+function doPost(e) {
+  try {
+    var d = JSON.parse(e.postData.contents);
+    var ss = SpreadsheetApp.openById(SHEET_ID);
+
+    // シートタブ名（例：【濱口】）
+    var tabName = d.sheetTab;
+    if (!tabName) {
+      return res({ status: 'error', message: 'sheetTab が未設定です。設定画面でシート名を入力してください。' });
+    }
+
+    var sheet = ss.getSheetByName(tabName);
+    if (!sheet) {
+      return res({ status: 'error', message: 'シート「' + tabName + '」が見つかりません。' });
+    }
+
+    // 日付から行を特定（例："3月15日" → 日=15 → row 5+15=20... ）
+    // ★ 実際の行計算はシートの構造に依存します
+    // row5=ヘッダー, row6=1日, row7=2日... → row = 5 + day
+    var dayMatch = d.date.match(/(\\d+)日/);
+    if (!dayMatch) {
+      return res({ status: 'error', message: '日付の形式が不正です: ' + d.date });
+    }
+    var day = parseInt(dayMatch[1]);
+    var row = 5 + day; // 6行目=1日, 7行目=2日, ...
+
+    // 件数・基本売上を書き込み
+    if (COL.count > 0) sheet.getRange(row, COL.count).setValue(d.count);
+    if (COL.baseAmount > 0) sheet.getRange(row, COL.baseAmount).setValue(d.originAmount);
+
+    // 追加売り上げを書き込み
+    var fields = [
+      ['naikiCount','naikiAmount'],['gaikiCount','gaikiAmount'],
+      ['roboCount','roboAmount'],['rfCount','rfAmount'],
+      ['mizuCount','mizuAmount'],['kokinCount','kokinAmount'],
+      ['sonotaAmount'],['inceCount','inceAmount']
+    ];
+
+    fields.forEach(function(pair) {
+      pair.forEach(function(key) {
+        if (COL[key] > 0 && d[key] !== undefined) {
+          sheet.getRange(row, COL[key]).setValue(d[key]);
+        }
+      });
+    });
+
+    // MEMO列に報告文（オプション）
+    if (COL.memo > 0) {
+      sheet.getRange(row, COL.memo).setValue(d.reportText);
+    }
+
+    return res({ status: 'ok', message: tabName + ' の ' + day + '日に記録しました' });
+
+  } catch(err) {
+    return res({ status: 'error', message: err.toString() });
   }
+}
 
+function res(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ===== バックアップ用：日報シートにも全データ記録 =====
+function doPostBackup(e) {
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var logSheet = ss.getSheetByName('日報ログ');
+  if (!logSheet) {
+    logSheet = ss.insertSheet('日報ログ');
+    logSheet.appendRow(['タイムスタンプ','名前','シート','日付','件数','基本売上',
+      '内機台','内機円','外機台','外機円','ロボ台','ロボ円','RF台','RF円',
+      '水回り台','水回り円','抗菌台','抗菌円','その他円','インセ台','インセ円',
+      '合計','マン数','相手名','報告文']);
+  }
   var d = JSON.parse(e.postData.contents);
-  sheet.appendRow([
-    d.timestamp, d.name, d.date, d.traineeMode, d.traineeName, d.origin, d.count, d.originAmount,
+  logSheet.appendRow([d.timestamp, d.name, d.sheetTab, d.date, d.count, d.originAmount,
     d.naikiCount, d.naikiAmount, d.gaikiCount, d.gaikiAmount,
     d.roboCount, d.roboAmount, d.rfCount, d.rfAmount,
-    d.mizuCount, d.mizuAmount, d.sonotaAmount, d.sonotaDetail,
-    d.inceCount, d.inceAmount, d.total, d.manType, d.partnerName, d.reportText
-  ]);
-
-  return ContentService
-    .createTextOutput(JSON.stringify({ status: 'ok' }))
-    .setMimeType(ContentService.MimeType.JSON);
+    d.mizuCount, d.mizuAmount, d.kokinCount, d.kokinAmount,
+    d.sonotaAmount, d.inceCount, d.inceAmount,
+    d.total, d.manType, d.partnerName, d.reportText]);
 }`;
 
   return (
@@ -706,6 +825,18 @@ function doPost(e) {
                 ❌ 送信に失敗しました。URLを確認してください。
               </div>
             )}
+            {!isAbsence && sendStatus === "error_gas" && (
+              <div style={{
+                background: "#3a0f0f",
+                border: "1px solid #8a2d2d",
+                borderRadius: 10,
+                padding: "12px 16px",
+                color: "#f87171",
+                fontSize: 14,
+              }}>
+                ❌ GASエラー：{errors[0] || "不明なエラー"}
+              </div>
+            )}
 
             <div style={{ fontSize: 13, color: "#888", fontWeight: 600, letterSpacing: 1 }}>
               {isAbsence ? "休み報告文" : "生成された報告文"}
@@ -900,6 +1031,16 @@ function doPost(e) {
                   placeholder="例：名古屋西"
                 />
               </Row>
+              <Row label="シート名">
+                <Input
+                  value={settings.sheetTab}
+                  onChange={(v) => saveSettings({ ...settings, sheetTab: v })}
+                  placeholder="例：【濱口】"
+                />
+              </Row>
+              <div style={{ fontSize: 12, color: "#666", marginTop: -4, lineHeight: 1.6 }}>
+                スプレッドシートの自分のタブ名を入力してください。
+              </div>
             </Section>
 
             <Section title="スタッフ管理">
@@ -1057,10 +1198,15 @@ function doPost(e) {
               color: "#aaa",
               lineHeight: 1.8,
             }}>
-              <div style={{ color: "#ffcc00", fontWeight: 700, marginBottom: 6 }}>⚠️ デプロイ時の注意</div>
-              <div>・「アクセスできるユーザー」は「全員」を選択</div>
-              <div>・初回は権限承認が必要（詳細 → 安全ではない...をクリック）</div>
-              <div>・更新時は「新しいデプロイ」ではなく「デプロイを管理」→「編集」</div>
+              <div style={{ color: "#ffcc00", fontWeight: 700, marginBottom: 6 }}>⚠️ セットアップ手順</div>
+              <div>1. スクリプトを貼り付けて保存</div>
+              <div>2. <b>showHeaders</b> を実行（▶ボタン）</div>
+              <div>3. 「実行ログ」で列番号を確認</div>
+              <div>4. COLの数値を実際の列番号に修正</div>
+              <div>5. デプロイ → アクセス：全員</div>
+              <div>6. URLをアプリの設定に貼る</div>
+              <div style={{ marginTop: 6 }}>・更新時は「デプロイを管理」→「編集」</div>
+              <div>・初回は権限承認が必要</div>
             </div>
           </div>
         )}
