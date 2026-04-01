@@ -4,12 +4,76 @@ const STORAGE_KEY = "reportApp_settings";
 const HISTORY_KEY = "reportApp_history";
 const MAX_HISTORY = 50;
 
+// ===== テーマ定義 =====
+const darkStatus = {
+  successBg: "#0f3a1a", successBorder: "#2d8a4e", successText: "#4ade80",
+  errorBg: "#3a0f0f", errorBorder: "#8a2d2d", errorText: "#f87171",
+  warnBg: "#3a1a0f", warnBorder: "#8a4e2d", warnText: "#fb923c",
+  infoBg: "#1a1a0a", infoBorder: "#554400", infoText: "#ffcc00", infoSub: "#aaa",
+};
+const lightStatus = {
+  successBg: "#e8f5e9", successBorder: "#66bb6a", successText: "#2e7d32",
+  errorBg: "#fce4ec", errorBorder: "#ef5350", errorText: "#c62828",
+  warnBg: "#fff3e0", warnBorder: "#ff9800", warnText: "#e65100",
+  infoBg: "#fff8e1", infoBorder: "#ffc107", infoText: "#795548", infoSub: "#666",
+};
+
+const THEMES = {
+  orangeDark: {
+    id: "orangeDark", name: "オレンジ×ダーク",
+    bg: "#0f0f0f", card: "#1a1a1a", cardBorder: "#2a2a2a",
+    accent: "#ff6b00", accentGrad: "linear-gradient(135deg, #ff6b00, #ff9500)",
+    text: "#f0f0f0", textSub: "#888", textMuted: "#555",
+    input: "#111", inputBorder: "#333", headerBg: "#1a1a1a",
+    codeBg: "#0d1117", codeText: "#c9d1d9",
+    ...darkStatus,
+  },
+  whiteOrange: {
+    id: "whiteOrange", name: "ホワイト×オレンジ",
+    bg: "#f5f5f5", card: "#ffffff", cardBorder: "#e0e0e0",
+    accent: "#ff6b00", accentGrad: "linear-gradient(135deg, #ff6b00, #ff9500)",
+    text: "#333", textSub: "#777", textMuted: "#aaa",
+    input: "#fff", inputBorder: "#d0d0d0", headerBg: "#fff",
+    codeBg: "#f8f8f8", codeText: "#333",
+    ...lightStatus,
+  },
+  blueDark: {
+    id: "blueDark", name: "ブルー×ダーク",
+    bg: "#0a0f1a", card: "#111827", cardBorder: "#1e3a5f",
+    accent: "#3b82f6", accentGrad: "linear-gradient(135deg, #3b82f6, #60a5fa)",
+    text: "#f0f0f0", textSub: "#888", textMuted: "#555",
+    input: "#0f172a", inputBorder: "#1e3a5f", headerBg: "#111827",
+    codeBg: "#0d1117", codeText: "#c9d1d9",
+    ...darkStatus,
+  },
+  greenDark: {
+    id: "greenDark", name: "グリーン×ダーク",
+    bg: "#0a1a0f", card: "#112718", cardBorder: "#1e5f3a",
+    accent: "#22c55e", accentGrad: "linear-gradient(135deg, #22c55e, #4ade80)",
+    text: "#f0f0f0", textSub: "#888", textMuted: "#555",
+    input: "#0a1f10", inputBorder: "#1e5f3a", headerBg: "#112718",
+    codeBg: "#0d1117", codeText: "#c9d1d9",
+    ...darkStatus,
+  },
+  whiteBlue: {
+    id: "whiteBlue", name: "ホワイト×ブルー",
+    bg: "#f0f4f8", card: "#ffffff", cardBorder: "#d0dce8",
+    accent: "#3b82f6", accentGrad: "linear-gradient(135deg, #3b82f6, #60a5fa)",
+    text: "#333", textSub: "#777", textMuted: "#aaa",
+    input: "#fff", inputBorder: "#c0cfe0", headerBg: "#fff",
+    codeBg: "#f8f8f8", codeText: "#333",
+    ...lightStatus,
+  },
+};
+
 const defaultSettings = {
   name: "",
   gasUrl: "",
   centerName: "",
   sheetTab: "",
   staff: [],
+  theme: "orangeDark",
+  myPercent: "",
 };
 
 const addItems = [
@@ -35,8 +99,8 @@ const defaultForm = {
   ),
   kokinCount: "",
   kokinAmount: "",
-  manType: "1",
-  partnerName: "",
+  manCount: 1,
+  partnerNames: [],
   traineeMode: false,
   traineeName: "",
 };
@@ -92,10 +156,16 @@ export default function App() {
   const [selectedHistory, setSelectedHistory] = useState(null);
   const [isAbsence, setIsAbsence] = useState(false);
 
+  const t = THEMES[settings.theme] || THEMES.orangeDark;
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       const parsed = { ...defaultSettings, ...JSON.parse(saved) };
+      // staff migration: add percent field if missing
+      if (parsed.staff) {
+        parsed.staff = parsed.staff.map(s => ({ percent: "", ...s }));
+      }
       setSettings(parsed);
       if (parsed.centerName) setForm(f => ({ ...f, origin: parsed.centerName }));
     } catch {}
@@ -121,6 +191,17 @@ export default function App() {
 
   const total = calcTotal();
 
+  // 日当計算
+  const myDailyPay = settings.myPercent ? Math.round(total * parseFloat(settings.myPercent) / 100) : 0;
+  const traineeDailyPay = (() => {
+    if (form.manCount < 2 || form.traineeMode) return 0;
+    const name = form.partnerNames[0];
+    if (!name) return 0;
+    const staff = settings.staff.find(s => s.name === name);
+    if (!staff?.percent) return 0;
+    return Math.round(total * parseFloat(staff.percent) / 100 * 0.25);
+  })();
+
   const generateText = useCallback(() => {
     const lines = [];
     lines.push(settings.name);
@@ -128,8 +209,13 @@ export default function App() {
 
     if (form.traineeMode) {
       if (form.traineeName) lines.push(`${form.traineeName}さん研修同行です。`);
-      if (form.manType === "2" && form.partnerName) {
-        lines.push(`${form.partnerName}さんと2マンです`);
+      if (form.manCount >= 2) {
+        const names = form.partnerNames.filter(n => n.trim()).join("・");
+        if (names) {
+          lines.push(`${names}と${form.manCount}マンです`);
+        } else {
+          lines.push(`${form.manCount}マンです`);
+        }
       } else {
         lines.push("1マンです");
       }
@@ -165,8 +251,13 @@ export default function App() {
     lines.push("");
     lines.push(`合計${total.toLocaleString()}円`);
 
-    if (form.manType === "2" && form.partnerName) {
-      lines.push(`${form.partnerName}さんと2マンです`);
+    if (form.manCount >= 2) {
+      const names = form.partnerNames.filter(n => n.trim()).join("・");
+      if (names) {
+        lines.push(`${names}と${form.manCount}マンです`);
+      } else {
+        lines.push(`${form.manCount}マンです`);
+      }
     } else {
       lines.push("1マンです");
     }
@@ -203,8 +294,8 @@ export default function App() {
       origin: form.traineeMode ? "研修" : form.origin,
       count: form.count,
       total,
-      manType: form.manType,
-      partnerName: form.partnerName,
+      manCount: form.manCount,
+      partnerNames: form.partnerNames,
       reportText,
       formSnapshot: JSON.parse(JSON.stringify(form)),
     };
@@ -221,7 +312,15 @@ export default function App() {
   };
 
   const restoreFromHistory = (entry) => {
-    setForm(entry.formSnapshot);
+    const snap = { ...entry.formSnapshot };
+    // 旧形式（manType/partnerName）→ 新形式（manCount/partnerNames）変換
+    if (snap.manType !== undefined && snap.manCount === undefined) {
+      snap.manCount = parseInt(snap.manType) || 1;
+      snap.partnerNames = snap.partnerName ? [snap.partnerName] : [];
+      delete snap.manType;
+      delete snap.partnerName;
+    }
+    setForm(snap);
     setSelectedHistory(null);
     setTab("form");
   };
@@ -278,8 +377,10 @@ export default function App() {
       inceCount: form.additions.ince.enabled ? formatNum(form.additions.ince.count) : 0,
       inceAmount: form.additions.ince.enabled ? formatNum(form.additions.ince.amount) : 0,
       total,
-      manType: form.manType,
-      partnerName: form.manType === "2" ? form.partnerName : "",
+      manCount: form.manCount,
+      partnerNames: form.partnerNames.filter(n => n.trim()),
+      myDailyPay,
+      traineeDailyPay,
       reportText: generateText(),
     };
 
@@ -299,7 +400,6 @@ export default function App() {
         saveHistory(generateText());
       }
     } catch (e) {
-      // ネットワークエラーでも送信自体は成功している可能性がある
       setSendStatus("ok");
       saveHistory(generateText());
     }
@@ -309,7 +409,7 @@ export default function App() {
   };
 
   const handleReset = () => {
-    setForm(defaultForm);
+    setForm({ ...defaultForm, origin: settings.centerName || "" });
     setSubmitted(false);
     setSendStatus(null);
     setIsAbsence(false);
@@ -336,6 +436,23 @@ export default function App() {
     }));
   };
 
+  const setManCount = (n) => {
+    setForm(f => {
+      const names = [...f.partnerNames];
+      while (names.length < n - 1) names.push("");
+      while (names.length > n - 1) names.pop();
+      return { ...f, manCount: n, partnerNames: names };
+    });
+  };
+
+  const updatePartnerName = (index, value) => {
+    setForm(f => {
+      const names = [...f.partnerNames];
+      names[index] = value;
+      return { ...f, partnerNames: names };
+    });
+  };
+
   const enabledStaff = settings.staff.filter((s) => s.enabled);
 
   const gasScript = `// Google Apps Script - 「R8年 チーム中山原本」のメンバーシートに直接記録
@@ -343,12 +460,9 @@ export default function App() {
 var SHEET_ID = '1KB3jrOsESJEjoprC9KgLHCSzUMYWqX7bbMSMS-BLvic';
 
 // ===== 列マッピング設定 =====
-// showHeaders() の結果を見て、実際の列番号に合わせてください
-// 列番号は A=1, B=2, C=3... です
 var COL = {
   count:       5,   // E列: 件数
   baseAmount:  6,   // F列: 基本売上
-  // --- 追加売り上げ ---
   naikiCount:  12,  // L列: 内機 台数
   naikiAmount: 13,  // M列: 内機 金額
   gaikiCount:  14,  // N列: 外機 台数
@@ -366,18 +480,17 @@ var COL = {
   inceAmount:  26,  // Z列: インセ 金額
   // ※ AA列(27) = 追加合計（数式）→ 書き込み禁止！
   memo:        0,   // MEMO書き込みなし
+  myDailyPay:  0,   // 自分日当（列番号を設定すれば書き込み）
+  traineeDailyPay: 0, // 研修生日当（列番号を設定すれば書き込み）
 };
 
-// ===== ヘッダー確認用（初回だけ実行） =====
 function showHeaders() {
   var ss = SpreadsheetApp.openById(SHEET_ID);
   var sheets = ss.getSheets();
   var result = [];
-
   sheets.forEach(function(sheet) {
     var name = sheet.getName();
-    if (name.indexOf('【') !== 0) return; // メンバーシートのみ
-
+    if (name.indexOf('【') !== 0) return;
     var lastCol = sheet.getLastColumn();
     var headers = sheet.getRange(5, 1, 1, lastCol).getValues()[0];
     result.push('\\n=== ' + name + ' ===');
@@ -385,7 +498,6 @@ function showHeaders() {
       if (h) result.push('  列' + (i+1) + ' (' + colLetter(i+1) + '): ' + h);
     });
   });
-
   Logger.log(result.join('\\n'));
   return result.join('\\n');
 }
@@ -396,58 +508,41 @@ function colLetter(n) {
   return s;
 }
 
-// ===== メイン：日報データ受信 =====
 function doPost(e) {
   try {
     var d = JSON.parse(e.postData.contents);
     var ss = SpreadsheetApp.openById(SHEET_ID);
-
-    // シートタブ名（例：【濱口】）
     var tabName = (d.sheetTab || '').trim();
     if (!tabName) {
-      return res({ status: 'error', message: 'sheetTab が未設定です。設定画面でシート名を入力してください。' });
+      return res({ status: 'error', message: 'sheetTab が未設定です。' });
     }
-
-    // 完全一致で探す。見つからなければ前後スペース無視で探す
     var sheet = ss.getSheetByName(tabName);
     if (!sheet) {
       var allSheets = ss.getSheets();
       for (var i = 0; i < allSheets.length; i++) {
-        if (allSheets[i].getName().trim() === tabName) {
-          sheet = allSheets[i];
-          break;
-        }
+        if (allSheets[i].getName().trim() === tabName) { sheet = allSheets[i]; break; }
       }
     }
     if (!sheet) {
       return res({ status: 'error', message: 'シート「' + tabName + '」が見つかりません。' });
     }
-
-    // 日付から行を特定（例："3月15日" → 日=15 → row 5+15=20... ）
-    // ★ 実際の行計算はシートの構造に依存します
-    // row5=ヘッダー, row6=1日, row7=2日... → row = 5 + day
     var dayMatch = d.date.match(/(\\d+)日/);
     if (!dayMatch) {
       return res({ status: 'error', message: '日付の形式が不正です: ' + d.date });
     }
     var day = parseInt(dayMatch[1]);
-    var row = 5 + day; // 6行目=1日, 7行目=2日, ...
-
-    // 行の高さを保存
+    var row = 5 + day;
     var originalHeight = sheet.getRowHeight(row);
 
-    // 抗菌金額をその他から差し引く（報告ではその他に含めているため）
     var kokinAmt = d.kokinAmount || 0;
     var sonotaAmt = d.sonotaAmount || 0;
     if (kokinAmt > 0 && sonotaAmt >= kokinAmt) {
       sonotaAmt = sonotaAmt - kokinAmt;
     }
 
-    // 件数・基本売上を書き込み
     if (COL.count > 0) sheet.getRange(row, COL.count).setValue(d.count);
     if (COL.baseAmount > 0) sheet.getRange(row, COL.baseAmount).setValue(d.originAmount);
 
-    // 追加売り上げを書き込み（0は書き込まない → 数式を保護）
     var writeIfNonZero = function(col, val) {
       if (col > 0 && val !== undefined && val !== 0 && val !== '') {
         sheet.getRange(row, col).setValue(val);
@@ -468,48 +563,25 @@ function doPost(e) {
     writeIfNonZero(COL.kokinAmount, kokinAmt);
     writeIfNonZero(COL.sonotaAmount, sonotaAmt);
     writeIfNonZero(COL.inceAmount, d.inceAmount);
+    writeIfNonZero(COL.myDailyPay, d.myDailyPay);
+    writeIfNonZero(COL.traineeDailyPay, d.traineeDailyPay);
 
-    // 行の高さを元に戻す
     sheet.setRowHeight(row, originalHeight);
-
     return res({ status: 'ok', message: tabName + ' の ' + day + '日に記録しました' });
-
   } catch(err) {
     return res({ status: 'error', message: err.toString() });
   }
 }
 
 function res(obj) {
-  return ContentService
-    .createTextOutput(JSON.stringify(obj))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-// ===== バックアップ用：日報シートにも全データ記録 =====
-function doPostBackup(e) {
-  var ss = SpreadsheetApp.openById(SHEET_ID);
-  var logSheet = ss.getSheetByName('日報ログ');
-  if (!logSheet) {
-    logSheet = ss.insertSheet('日報ログ');
-    logSheet.appendRow(['タイムスタンプ','名前','シート','日付','件数','基本売上',
-      '内機台','内機円','外機台','外機円','ロボ台','ロボ円','RF台','RF円',
-      '水回り台','水回り円','抗菌台','抗菌円','その他円','インセ台','インセ円',
-      '合計','マン数','相手名','報告文']);
-  }
-  var d = JSON.parse(e.postData.contents);
-  logSheet.appendRow([d.timestamp, d.name, d.sheetTab, d.date, d.count, d.originAmount,
-    d.naikiCount, d.naikiAmount, d.gaikiCount, d.gaikiAmount,
-    d.roboCount, d.roboAmount, d.rfCount, d.rfAmount,
-    d.mizuCount, d.mizuAmount, d.kokinCount, d.kokinAmount,
-    d.sonotaAmount, d.inceCount, d.inceAmount,
-    d.total, d.manType, d.partnerName, d.reportText]);
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }`;
 
   return (
     <div style={{
       minHeight: "100vh",
-      background: "#0f0f0f",
-      color: "#f0f0f0",
+      background: t.bg,
+      color: t.text,
       fontFamily: "'Noto Sans JP', 'Hiragino Sans', sans-serif",
       maxWidth: 480,
       margin: "0 auto",
@@ -517,8 +589,8 @@ function doPostBackup(e) {
     }}>
       {/* Header */}
       <div style={{
-        background: "#1a1a1a",
-        borderBottom: "2px solid #ff6b00",
+        background: t.headerBg,
+        borderBottom: `2px solid ${t.accent}`,
         padding: "16px 20px",
         display: "flex",
         alignItems: "center",
@@ -528,16 +600,16 @@ function doPostBackup(e) {
         zIndex: 100,
       }}>
         <div>
-          <div style={{ fontSize: 11, color: "#ff6b00", letterSpacing: 3, fontWeight: 700 }}>
+          <div style={{ fontSize: 11, color: t.accent, letterSpacing: 3, fontWeight: 700 }}>
             DAILY REPORT
           </div>
           <div style={{ fontSize: 18, fontWeight: 800 }}>日報送信アプリ</div>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
-          <TabBtn label="入力" active={tab === "form"} onClick={() => setTab("form")} />
-          <TabBtn label="報告文" active={tab === "result"} onClick={() => setTab("result")} />
-          <TabBtn label="履歴" active={tab === "history"} onClick={() => { setTab("history"); setSelectedHistory(null); }} />
-          <TabBtn label="⚙" active={tab === "settings"} onClick={() => setTab("settings")} />
+          <TabBtn label="入力" active={tab === "form"} onClick={() => setTab("form")} t={t} />
+          <TabBtn label="報告文" active={tab === "result"} onClick={() => setTab("result")} t={t} />
+          <TabBtn label="履歴" active={tab === "history"} onClick={() => { setTab("history"); setSelectedHistory(null); }} t={t} />
+          <TabBtn label="⚙" active={tab === "settings"} onClick={() => setTab("settings")} t={t} />
         </div>
       </div>
 
@@ -547,56 +619,57 @@ function doPostBackup(e) {
         {tab === "form" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-            {/* バリデーションエラー */}
             {errors.length > 0 && (
               <div style={{
-                background: "#3a0f0f",
-                border: "1px solid #8a2d2d",
+                background: t.errorBg,
+                border: `1px solid ${t.errorBorder}`,
                 borderRadius: 10,
                 padding: "12px 16px",
-                color: "#f87171",
+                color: t.errorText,
                 fontSize: 14,
               }}>
                 {errors.map((e, i) => <div key={i}>⚠ {e}</div>)}
               </div>
             )}
 
-            {/* 研修モード切り替え */}
+            {/* 研修モード */}
             <div style={{
-              background: "#1a1a1a",
+              background: t.card,
               borderRadius: 12,
               padding: "14px 16px",
-              border: `1px solid ${form.traineeMode ? "#ff6b00" : "#2a2a2a"}`,
+              border: `1px solid ${form.traineeMode ? t.accent : t.cardBorder}`,
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
             }}>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: form.traineeMode ? "#ff6b00" : "#888" }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: form.traineeMode ? t.accent : t.textSub }}>
                   研修モード
                 </div>
-                <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>
+                <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>
                   ONにすると研修同行報告に切り替わります
                 </div>
               </div>
               <Toggle
                 active={form.traineeMode}
                 onClick={() => setForm((f) => ({ ...f, traineeMode: !f.traineeMode, traineeName: "" }))}
+                t={t}
               />
             </div>
 
             {/* 基本情報 */}
-            <Section title="基本情報">
-              <Row label="名前">
-                <Input value={settings.name} onChange={(v) => saveSettings({ ...settings, name: v })} />
+            <Section title="基本情報" t={t}>
+              <Row label="名前" t={t}>
+                <Input value={settings.name} onChange={(v) => saveSettings({ ...settings, name: v })} t={t} />
               </Row>
-              <Row label="日付">
+              <Row label="日付" t={t}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <div style={{ flex: 1 }}>
                     <Input
                       value={form.date}
                       onChange={(v) => setForm((f) => ({ ...f, date: v }))}
                       placeholder="例：3月29日"
+                      t={t}
                     />
                   </div>
                   <button
@@ -606,10 +679,10 @@ function doPostBackup(e) {
                     }}
                     style={{
                       padding: "8px 12px",
-                      background: "#1a1a1a",
-                      border: "1px solid #ff6b00",
+                      background: t.card,
+                      border: `1px solid ${t.accent}`,
                       borderRadius: 8,
-                      color: "#ff6b00",
+                      color: t.accent,
                       fontSize: 12,
                       fontWeight: 700,
                       cursor: "pointer",
@@ -622,84 +695,72 @@ function doPostBackup(e) {
                 </div>
               </Row>
               {form.traineeMode && (
-                <Row label={<>同行者<Req /></>}>
+                <Row label={<>同行者<Req /></>} t={t}>
                   <Input
                     value={form.traineeName}
                     onChange={(v) => setForm((f) => ({ ...f, traineeName: v }))}
                     placeholder="例：米田有佑"
+                    t={t}
                   />
                 </Row>
               )}
             </Section>
 
-            {/* エディオン - 研修モードでは非表示 */}
+            {/* エディオン */}
             {!form.traineeMode && (
-              <Section title="エディオン">
-                <Row label={<>センター<Req /></>}>
+              <Section title="エディオン" t={t}>
+                <Row label={<>センター<Req /></>} t={t}>
                   <Input
                     value={form.origin}
                     onChange={(v) => setForm((f) => ({ ...f, origin: v }))}
                     placeholder="例：春日井"
+                    t={t}
                   />
                 </Row>
-                <Row label={<>件数<Req /></>}>
+                <Row label={<>件数<Req /></>} t={t}>
                   <Input
                     value={form.count}
                     onChange={(v) => setForm((f) => ({ ...f, count: v }))}
-                    placeholder=""
                     type="number"
                     suffix="件"
+                    t={t}
                   />
                 </Row>
-                <Row label={<>金額<Req /></>}>
+                <Row label={<>金額<Req /></>} t={t}>
                   <MoneyInput
                     value={form.originAmount}
                     onChange={(v) => setForm((f) => ({ ...f, originAmount: v }))}
-                    placeholder=""
+                    t={t}
                   />
                 </Row>
               </Section>
             )}
 
-            {/* 追加 - 研修モードでは非表示 */}
+            {/* 追加 */}
             {!form.traineeMode && (
-              <Section title="追加（該当するものをON）">
+              <Section title="追加（該当するものをON）" t={t}>
                 {addItems.map((item) => {
                   const a = form.additions[item.key];
                   return (
                     <div key={item.key} style={{ marginBottom: 12 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: a.enabled ? 8 : 0 }}>
-                        <Toggle active={a.enabled} onClick={() => toggleAddition(item.key)} />
+                        <Toggle active={a.enabled} onClick={() => toggleAddition(item.key)} t={t} />
                         <span style={{ fontSize: 15, fontWeight: 600 }}>{item.label}</span>
                       </div>
                       {a.enabled && (
                         <div style={{ paddingLeft: 46, display: "flex", flexDirection: "column", gap: 6 }}>
                           {item.hasCount && (
-                            <Row label="台数">
-                              <Input
-                                value={a.count}
-                                onChange={(v) => updateAddition(item.key, "count", v)}
-                                placeholder=""
-                                type="number"
-                                suffix="台"
-                              />
+                            <Row label="台数" t={t}>
+                              <Input value={a.count} onChange={(v) => updateAddition(item.key, "count", v)} type="number" suffix="台" t={t} />
                             </Row>
                           )}
                           {item.hasDetail && (
-                            <Row label="詳細">
-                              <Input
-                                value={a.detail || ""}
-                                onChange={(v) => updateAddition(item.key, "detail", v)}
-                                placeholder="例：抗菌2台"
-                              />
+                            <Row label="詳細" t={t}>
+                              <Input value={a.detail || ""} onChange={(v) => updateAddition(item.key, "detail", v)} placeholder="例：抗菌2台" t={t} />
                             </Row>
                           )}
-                          <Row label="金額">
-                            <MoneyInput
-                              value={a.amount}
-                              onChange={(v) => updateAddition(item.key, "amount", v)}
-                              placeholder=""
-                            />
+                          <Row label="金額" t={t}>
+                            <MoneyInput value={a.amount} onChange={(v) => updateAddition(item.key, "amount", v)} t={t} />
                           </Row>
                         </div>
                       )}
@@ -709,98 +770,96 @@ function doPostBackup(e) {
               </Section>
             )}
 
-            {/* 抗菌（スプレッド転記用） - 研修モードでは非表示 */}
+            {/* 抗菌（スプレッド転記用） */}
             {!form.traineeMode && (
               <div style={{
-                background: "#1a1a1a",
+                background: t.card,
                 borderRadius: 12,
                 padding: "16px",
-                border: "1px solid #2a2a2a",
+                border: `1px solid ${t.cardBorder}`,
               }}>
-                <div style={{
-                  fontSize: 11,
-                  color: "#888",
-                  fontWeight: 700,
-                  letterSpacing: 2,
-                  marginBottom: 12,
-                }}>
+                <div style={{ fontSize: 11, color: t.textSub, fontWeight: 700, letterSpacing: 2, marginBottom: 12 }}>
                   抗菌（スプレッド転記用）
                 </div>
-                <div style={{ fontSize: 12, color: "#555", marginBottom: 10, lineHeight: 1.6 }}>
+                <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 10, lineHeight: 1.6 }}>
                   報告文には出ません。スプレッドシートの抗菌列に転記されます。
                 </div>
-                <Row label="台数">
-                  <Input
-                    value={form.kokinCount}
-                    onChange={(v) => setForm((f) => ({ ...f, kokinCount: v }))}
-                    placeholder=""
-                    type="number"
-                    suffix="台"
-                  />
+                <Row label="台数" t={t}>
+                  <Input value={form.kokinCount} onChange={(v) => setForm((f) => ({ ...f, kokinCount: v }))} type="number" suffix="台" t={t} />
                 </Row>
-                <Row label="金額">
-                  <MoneyInput
-                    value={form.kokinAmount}
-                    onChange={(v) => setForm((f) => ({ ...f, kokinAmount: v }))}
-                    placeholder=""
-                  />
+                <Row label="金額" t={t}>
+                  <MoneyInput value={form.kokinAmount} onChange={(v) => setForm((f) => ({ ...f, kokinAmount: v }))} t={t} />
                 </Row>
               </div>
             )}
 
-            {/* 合計 - 研修モードでは非表示 */}
+            {/* 合計 */}
             {!form.traineeMode && (
               <div style={{
-                background: "#1a1a1a",
-                border: "2px solid #ff6b00",
+                background: t.card,
+                border: `2px solid ${t.accent}`,
                 borderRadius: 12,
                 padding: "14px 18px",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
               }}>
-                <span style={{ fontSize: 16, fontWeight: 700, color: "#ff6b00" }}>合計</span>
+                <span style={{ fontSize: 16, fontWeight: 700, color: t.accent }}>合計</span>
                 <span style={{ fontSize: 24, fontWeight: 900 }}>
                   {total > 0 ? `¥${total.toLocaleString()}` : "¥0"}
                 </span>
               </div>
             )}
 
-            {/* マン */}
-            <Section title="作業形態">
+            {/* マン数 */}
+            <Section title="作業形態" t={t}>
               <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-                {["1", "2"].map((m) => (
+                {[1, 2, 3].map((m) => (
                   <button
                     key={m}
-                    onClick={() => setForm((f) => ({ ...f, manType: m, partnerName: "" }))}
+                    onClick={() => setManCount(m === 3 ? Math.max(3, form.manCount >= 3 ? form.manCount : 3) : m)}
                     style={{
                       flex: 1,
                       padding: "12px 0",
                       borderRadius: 8,
-                      border: `2px solid ${form.manType === m ? "#ff6b00" : "#333"}`,
-                      background: form.manType === m ? "#ff6b0022" : "#1a1a1a",
-                      color: form.manType === m ? "#ff6b00" : "#888",
+                      border: `2px solid ${(m < 3 ? form.manCount === m : form.manCount >= 3) ? t.accent : t.inputBorder}`,
+                      background: (m < 3 ? form.manCount === m : form.manCount >= 3) ? `${t.accent}22` : t.card,
+                      color: (m < 3 ? form.manCount === m : form.manCount >= 3) ? t.accent : t.textSub,
                       fontSize: 15,
                       fontWeight: 700,
                       cursor: "pointer",
                     }}
                   >
-                    {m}マン
+                    {m === 3 ? "3+マン" : `${m}マン`}
                   </button>
                 ))}
               </div>
-              {form.manType === "2" && (
-                <Row label="相手の名前">
+              {form.manCount >= 3 && (
+                <Row label="人数" t={t}>
+                  <Input
+                    value={String(form.manCount)}
+                    onChange={(v) => {
+                      const n = parseInt(v) || 3;
+                      setManCount(Math.max(3, n));
+                    }}
+                    type="number"
+                    suffix="人"
+                    t={t}
+                  />
+                </Row>
+              )}
+              {form.manCount >= 2 && form.partnerNames.map((name, i) => (
+                <Row label={`相手${form.manCount > 2 ? (i + 1) : ""}`} key={i} t={t}>
                   {enabledStaff.length > 0 ? (
                     <select
-                      value={form.partnerName}
-                      onChange={(e) => setForm((f) => ({ ...f, partnerName: e.target.value }))}
+                      value={name}
+                      onChange={(e) => updatePartnerName(i, e.target.value)}
                       style={{
                         width: "100%",
-                        background: "#111",
-                        border: "1px solid #333",
+                        background: t.input,
+                        border: `1px solid ${t.inputBorder}`,
                         borderRadius: 8,
-                        color: form.partnerName ? "#f0f0f0" : "#555",
+                        color: name ? t.text : t.textMuted,
                         padding: "8px 12px",
                         fontSize: 15,
                         outline: "none",
@@ -813,23 +872,24 @@ function doPostBackup(e) {
                     </select>
                   ) : (
                     <Input
-                      value={form.partnerName}
-                      onChange={(v) => setForm((f) => ({ ...f, partnerName: v }))}
+                      value={name}
+                      onChange={(v) => updatePartnerName(i, v)}
                       placeholder="例：佐藤優光"
+                      t={t}
                     />
                   )}
                 </Row>
-              )}
+              ))}
             </Section>
 
-            {/* 送信 */}
+            {/* 送信ボタン */}
             <button
               onClick={handleSubmit}
               disabled={sending}
               style={{
                 width: "100%",
                 padding: "16px 0",
-                background: sending ? "#444" : "linear-gradient(135deg, #ff6b00, #ff9500)",
+                background: sending ? t.textMuted : t.accentGrad,
                 color: "#fff",
                 border: "none",
                 borderRadius: 12,
@@ -839,15 +899,10 @@ function doPostBackup(e) {
                 letterSpacing: 2,
               }}
             >
-              {sending ? "送信中..." : "📤 送信してスプレッドシートへ"}
+              {sending ? "送信中..." : "送信してスプレッドシートへ"}
             </button>
 
-            {/* 休み報告 */}
-            <AbsenceCopyBtn
-              name={settings.name}
-              date={form.date}
-              onAbsence={() => { setIsAbsence(true); setTab("result"); }}
-            />
+            <AbsenceCopyBtn name={settings.name} date={form.date} onAbsence={() => { setIsAbsence(true); setTab("result"); }} t={t} />
           </div>
         )}
 
@@ -856,103 +911,95 @@ function doPostBackup(e) {
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {!isAbsence && sendStatus === "ok" && (
               <div style={{
-                background: "#0f3a1a",
-                border: "1px solid #2d8a4e",
-                borderRadius: 10,
-                padding: "12px 16px",
-                color: "#4ade80",
-                fontSize: 14,
-                fontWeight: 600,
+                background: t.successBg, border: `1px solid ${t.successBorder}`,
+                borderRadius: 10, padding: "12px 16px", color: t.successText, fontSize: 14, fontWeight: 600,
               }}>
-                ✅ スプレッドシートに送信しました
+                スプレッドシートに送信しました
               </div>
             )}
             {!isAbsence && sendStatus === "error_no_url" && (
               <div style={{
-                background: "#3a1a0f",
-                border: "1px solid #8a4e2d",
-                borderRadius: 10,
-                padding: "12px 16px",
-                color: "#fb923c",
-                fontSize: 14,
+                background: t.warnBg, border: `1px solid ${t.warnBorder}`,
+                borderRadius: 10, padding: "12px 16px", color: t.warnText, fontSize: 14,
               }}>
-                ⚠️ GAS URLが未設定です。⚙設定からURLを入力してください。
+                GAS URLが未設定です。設定からURLを入力してください。
               </div>
             )}
             {!isAbsence && sendStatus === "error" && (
               <div style={{
-                background: "#3a0f0f",
-                border: "1px solid #8a2d2d",
-                borderRadius: 10,
-                padding: "12px 16px",
-                color: "#f87171",
-                fontSize: 14,
+                background: t.errorBg, border: `1px solid ${t.errorBorder}`,
+                borderRadius: 10, padding: "12px 16px", color: t.errorText, fontSize: 14,
               }}>
-                ❌ 送信に失敗しました。URLを確認してください。
+                送信に失敗しました。URLを確認してください。
               </div>
             )}
             {!isAbsence && sendStatus === "error_gas" && (
               <div style={{
-                background: "#3a0f0f",
-                border: "1px solid #8a2d2d",
-                borderRadius: 10,
-                padding: "12px 16px",
-                color: "#f87171",
-                fontSize: 14,
+                background: t.errorBg, border: `1px solid ${t.errorBorder}`,
+                borderRadius: 10, padding: "12px 16px", color: t.errorText, fontSize: 14,
               }}>
-                ❌ GASエラー：{errors[0] || "不明なエラー"}
+                GASエラー：{errors[0] || "不明なエラー"}
               </div>
             )}
 
-            <div style={{ fontSize: 13, color: "#888", fontWeight: 600, letterSpacing: 1 }}>
+            <div style={{ fontSize: 13, color: t.textSub, fontWeight: 600, letterSpacing: 1 }}>
               {isAbsence ? "休み報告文" : "生成された報告文"}
             </div>
             <div style={{
-              background: "#1a1a1a",
-              border: "1px solid #333",
-              borderRadius: 12,
-              padding: "18px 16px",
-              whiteSpace: "pre-wrap",
-              lineHeight: 1.9,
-              fontSize: 15,
-              fontFamily: "'Noto Sans JP', sans-serif",
+              background: t.card, border: `1px solid ${t.inputBorder}`,
+              borderRadius: 12, padding: "18px 16px",
+              whiteSpace: "pre-wrap", lineHeight: 1.9, fontSize: 15,
             }}>
               {isAbsence ? `${settings.name}\n本日${form.date}休みです` : generateText()}
             </div>
 
+            {/* 日当表示 */}
+            {!isAbsence && !form.traineeMode && (myDailyPay > 0 || traineeDailyPay > 0) && (
+              <div style={{
+                background: t.card, border: `1px solid ${t.cardBorder}`,
+                borderRadius: 12, padding: "16px",
+              }}>
+                <div style={{ fontSize: 11, color: t.accent, fontWeight: 700, letterSpacing: 2, marginBottom: 12 }}>
+                  日当計算
+                </div>
+                {myDailyPay > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <span style={{ fontSize: 14, color: t.textSub }}>自分の日当</span>
+                    <span style={{ fontSize: 20, fontWeight: 900, color: t.accent }}>¥{myDailyPay.toLocaleString()}</span>
+                  </div>
+                )}
+                {traineeDailyPay > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 14, color: t.textSub }}>研修生の日当</span>
+                    <span style={{ fontSize: 20, fontWeight: 900 }}>¥{traineeDailyPay.toLocaleString()}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
             <button
               onClick={handleCopy}
               style={{
-                width: "100%",
-                padding: "14px 0",
-                background: copied ? "#1a3a2a" : "#1a1a1a",
-                color: copied ? "#4ade80" : "#f0f0f0",
-                border: `2px solid ${copied ? "#2d8a4e" : "#ff6b00"}`,
-                borderRadius: 12,
-                fontSize: 16,
-                fontWeight: 700,
-                cursor: "pointer",
-                transition: "all 0.2s",
+                width: "100%", padding: "14px 0",
+                background: copied ? t.successBg : t.card,
+                color: copied ? t.successText : t.text,
+                border: `2px solid ${copied ? t.successBorder : t.accent}`,
+                borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer", transition: "all 0.2s",
               }}
             >
-              {copied ? "✅ コピーしました！" : "📋 テキストをコピー"}
+              {copied ? "コピーしました！" : "テキストをコピー"}
             </button>
 
             <button
               onClick={handleReset}
               style={{
-                width: "100%",
-                padding: "12px 0",
-                background: "transparent",
-                color: "#888",
-                border: "1px solid #333",
-                borderRadius: 12,
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: "pointer",
+                width: "100%", padding: "12px 0",
+                background: "transparent", color: t.textSub,
+                border: `1px solid ${t.inputBorder}`,
+                borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: "pointer",
               }}
             >
-              🔄 新しい日報を入力する
+              新しい日報を入力する
             </button>
           </div>
         )}
@@ -965,14 +1012,7 @@ function doPostBackup(e) {
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <button
                     onClick={() => setSelectedHistory(null)}
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      color: "#ff6b00",
-                      fontSize: 20,
-                      cursor: "pointer",
-                      padding: 0,
-                    }}
+                    style={{ background: "transparent", border: "none", color: t.accent, fontSize: 20, cursor: "pointer", padding: 0 }}
                   >
                     ←
                   </button>
@@ -982,31 +1022,22 @@ function doPostBackup(e) {
                 </div>
 
                 <div style={{
-                  background: "#1a1a1a",
-                  border: "1px solid #333",
-                  borderRadius: 12,
-                  padding: "18px 16px",
-                  whiteSpace: "pre-wrap",
-                  lineHeight: 1.9,
-                  fontSize: 15,
+                  background: t.card, border: `1px solid ${t.inputBorder}`,
+                  borderRadius: 12, padding: "18px 16px",
+                  whiteSpace: "pre-wrap", lineHeight: 1.9, fontSize: 15,
                 }}>
                   {selectedHistory.reportText}
                 </div>
 
-                <HistoryCopyBtn text={selectedHistory.reportText} />
+                <HistoryCopyBtn text={selectedHistory.reportText} t={t} />
 
                 <button
                   onClick={() => restoreFromHistory(selectedHistory)}
                   style={{
-                    width: "100%",
-                    padding: "14px 0",
-                    background: "#1a1a1a",
-                    color: "#ff6b00",
-                    border: "2px solid #ff6b00",
-                    borderRadius: 12,
-                    fontSize: 15,
-                    fontWeight: 700,
-                    cursor: "pointer",
+                    width: "100%", padding: "14px 0",
+                    background: t.card, color: t.accent,
+                    border: `2px solid ${t.accent}`,
+                    borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: "pointer",
                   }}
                 >
                   この内容で入力する
@@ -1015,15 +1046,10 @@ function doPostBackup(e) {
                 <button
                   onClick={() => deleteHistory(selectedHistory.id)}
                   style={{
-                    width: "100%",
-                    padding: "12px 0",
-                    background: "transparent",
-                    color: "#f87171",
-                    border: "1px solid #8a2d2d",
-                    borderRadius: 12,
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: "pointer",
+                    width: "100%", padding: "12px 0",
+                    background: "transparent", color: t.errorText,
+                    border: `1px solid ${t.errorBorder}`,
+                    borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: "pointer",
                   }}
                 >
                   この履歴を削除
@@ -1031,48 +1057,45 @@ function doPostBackup(e) {
               </>
             ) : (
               <>
-                <div style={{ fontSize: 13, color: "#888", fontWeight: 600, letterSpacing: 1 }}>
+                <div style={{ fontSize: 13, color: t.textSub, fontWeight: 600, letterSpacing: 1 }}>
                   送信履歴（最新{MAX_HISTORY}件）
                 </div>
                 {history.length === 0 ? (
                   <div style={{
-                    background: "#1a1a1a",
-                    borderRadius: 12,
-                    padding: "40px 20px",
-                    textAlign: "center",
-                    color: "#666",
-                    fontSize: 14,
+                    background: t.card, borderRadius: 12, padding: "40px 20px",
+                    textAlign: "center", color: t.textMuted, fontSize: 14,
                   }}>
                     まだ送信履歴がありません
                   </div>
                 ) : (
-                  history.map((h) => (
-                    <div
-                      key={h.id}
-                      onClick={() => setSelectedHistory(h)}
-                      style={{
-                        background: "#1a1a1a",
-                        border: "1px solid #2a2a2a",
-                        borderRadius: 12,
-                        padding: "14px 16px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                        <span style={{ fontSize: 15, fontWeight: 700 }}>{h.date}</span>
-                        <span style={{ fontSize: 18, fontWeight: 900, color: "#ff6b00" }}>
-                          ¥{h.total.toLocaleString()}
-                        </span>
+                  history.map((h) => {
+                    const manLabel = h.manCount >= 2
+                      ? ` / ${(h.partnerNames || [h.partnerName]).filter(Boolean).join("・")}と${h.manCount || h.manType}マン`
+                      : "";
+                    return (
+                      <div
+                        key={h.id}
+                        onClick={() => setSelectedHistory(h)}
+                        style={{
+                          background: t.card, border: `1px solid ${t.cardBorder}`,
+                          borderRadius: 12, padding: "14px 16px", cursor: "pointer",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                          <span style={{ fontSize: 15, fontWeight: 700 }}>{h.date}</span>
+                          <span style={{ fontSize: 18, fontWeight: 900, color: t.accent }}>
+                            ¥{(h.total || 0).toLocaleString()}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 13, color: t.textSub }}>
+                          {h.origin}{h.count ? ` ${h.count}件` : ""}{manLabel}
+                        </div>
+                        <div style={{ fontSize: 11, color: t.textMuted, marginTop: 4 }}>
+                          {new Date(h.timestamp).toLocaleString("ja-JP")}
+                        </div>
                       </div>
-                      <div style={{ fontSize: 13, color: "#888" }}>
-                        {h.origin}{h.count ? ` ${h.count}件` : ""}
-                        {h.manType === "2" && h.partnerName ? ` / ${h.partnerName}さんと2マン` : ""}
-                      </div>
-                      <div style={{ fontSize: 11, color: "#555", marginTop: 4 }}>
-                        {new Date(h.timestamp).toLocaleString("ja-JP")}
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </>
             )}
@@ -1082,52 +1105,78 @@ function doPostBackup(e) {
         {/* SETTINGS TAB */}
         {tab === "settings" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <Section title="基本設定">
-              <Row label="自分の名前">
-                <Input
-                  value={settings.name}
-                  onChange={(v) => saveSettings({ ...settings, name: v })}
-                  placeholder="例：濱口翔太"
-                />
-              </Row>
-              <Row label="センター名">
-                <Input
-                  value={settings.centerName}
-                  onChange={(v) => saveSettings({ ...settings, centerName: v })}
-                  placeholder="例：名古屋西"
-                />
-              </Row>
-              <Row label="シート名">
-                <Input
-                  value={settings.sheetTab}
-                  onChange={(v) => saveSettings({ ...settings, sheetTab: v })}
-                  placeholder="例：【濱口】"
-                />
-              </Row>
-              <div style={{ fontSize: 12, color: "#666", marginTop: -4, lineHeight: 1.6 }}>
-                スプレッドシートの自分のタブ名を入力してください。
+
+            {/* テーマ選択 */}
+            <Section title="テーマ" t={t}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {Object.values(THEMES).map((theme) => (
+                  <button
+                    key={theme.id}
+                    onClick={() => saveSettings({ ...settings, theme: theme.id })}
+                    style={{
+                      flex: "1 1 calc(50% - 4px)",
+                      minWidth: 140,
+                      padding: "12px 8px",
+                      background: theme.bg,
+                      border: `2px solid ${settings.theme === theme.id ? theme.accent : theme.cardBorder}`,
+                      borderRadius: 10,
+                      cursor: "pointer",
+                      textAlign: "center",
+                    }}
+                  >
+                    <div style={{ color: theme.accent, fontWeight: 700, fontSize: 12 }}>{theme.name}</div>
+                    <div style={{ display: "flex", gap: 4, justifyContent: "center", marginTop: 6 }}>
+                      <div style={{ width: 16, height: 16, borderRadius: 4, background: theme.accent }} />
+                      <div style={{ width: 16, height: 16, borderRadius: 4, background: theme.card, border: `1px solid ${theme.cardBorder}` }} />
+                      <div style={{ width: 16, height: 16, borderRadius: 4, background: theme.bg, border: `1px solid ${theme.cardBorder}` }} />
+                    </div>
+                  </button>
+                ))}
               </div>
             </Section>
 
-            <Section title="スタッフ管理">
-              <div style={{ fontSize: 12, color: "#666", marginBottom: 10, lineHeight: 1.6 }}>
-                2マン選択時のプルダウンに表示されます。無効で非表示になります。
+            <Section title="基本設定" t={t}>
+              <Row label="自分の名前" t={t}>
+                <Input value={settings.name} onChange={(v) => saveSettings({ ...settings, name: v })} placeholder="例：濱口翔太" t={t} />
+              </Row>
+              <Row label="センター名" t={t}>
+                <Input value={settings.centerName} onChange={(v) => saveSettings({ ...settings, centerName: v })} placeholder="例：名古屋西" t={t} />
+              </Row>
+              <Row label="シート名" t={t}>
+                <Input value={settings.sheetTab} onChange={(v) => saveSettings({ ...settings, sheetTab: v })} placeholder="例：【濱口】" t={t} />
+              </Row>
+              <div style={{ fontSize: 12, color: t.textMuted, marginTop: -4, lineHeight: 1.6 }}>
+                スプレッドシートの自分のタブ名を入力してください。
+              </div>
+              <Row label="自分の割合" t={t}>
+                <Input
+                  value={settings.myPercent}
+                  onChange={(v) => saveSettings({ ...settings, myPercent: v })}
+                  placeholder="例：85"
+                  type="number"
+                  suffix="%"
+                  t={t}
+                />
+              </Row>
+              <div style={{ fontSize: 12, color: t.textMuted, marginTop: -4, lineHeight: 1.6 }}>
+                日当計算に使用します（売上×割合%）。
+              </div>
+            </Section>
+
+            <Section title="スタッフ管理" t={t}>
+              <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 10, lineHeight: 1.6 }}>
+                マン選択時のプルダウンに表示。割合は研修生日当の計算に使用（売上×割合%×25%）。
               </div>
               {settings.staff.length === 0 && (
-                <div style={{ fontSize: 13, color: "#555", marginBottom: 10 }}>
+                <div style={{ fontSize: 13, color: t.textMuted, marginBottom: 10 }}>
                   スタッフが登録されていません
                 </div>
               )}
               {settings.staff.map((s, i) => (
                 <div key={s.id} style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  marginBottom: 8,
-                  padding: "8px 12px",
-                  background: "#111",
-                  borderRadius: 8,
-                  border: "1px solid #2a2a2a",
+                  display: "flex", alignItems: "center", gap: 8,
+                  marginBottom: 8, padding: "8px 12px",
+                  background: t.input, borderRadius: 8, border: `1px solid ${t.cardBorder}`,
                 }}>
                   <Toggle
                     active={s.enabled}
@@ -1136,18 +1185,31 @@ function doPostBackup(e) {
                       updated[i] = { ...s, enabled: !s.enabled };
                       saveSettings({ ...settings, staff: updated });
                     }}
+                    t={t}
                   />
-                  <span style={{ flex: 1, fontSize: 15, color: s.enabled ? "#f0f0f0" : "#555" }}>{s.name}</span>
+                  <span style={{ flex: 1, fontSize: 15, color: s.enabled ? t.text : t.textMuted }}>{s.name}</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={s.percent || ""}
+                    onChange={(e) => {
+                      const updated = [...settings.staff];
+                      updated[i] = { ...s, percent: e.target.value };
+                      saveSettings({ ...settings, staff: updated });
+                    }}
+                    placeholder="%"
+                    style={{
+                      width: 50, background: t.input, border: `1px solid ${t.inputBorder}`,
+                      borderRadius: 6, color: t.text, padding: "4px 6px",
+                      fontSize: 13, outline: "none", textAlign: "center",
+                    }}
+                  />
+                  <span style={{ fontSize: 11, color: t.textMuted }}>%</span>
                   <button
                     onClick={() => saveSettings({ ...settings, staff: settings.staff.filter((_, j) => j !== i) })}
                     style={{
-                      background: "transparent",
-                      border: "none",
-                      color: "#8a2d2d",
-                      fontSize: 20,
-                      cursor: "pointer",
-                      padding: "0 4px",
-                      lineHeight: 1,
+                      background: "transparent", border: "none",
+                      color: t.errorBorder, fontSize: 20, cursor: "pointer", padding: "0 4px", lineHeight: 1,
                     }}
                   >
                     ×
@@ -1159,21 +1221,22 @@ function doPostBackup(e) {
                   if (!name.trim()) return;
                   saveSettings({
                     ...settings,
-                    staff: [...settings.staff, { id: Date.now().toString(), name: name.trim(), enabled: true }],
+                    staff: [...settings.staff, { id: Date.now().toString(), name: name.trim(), enabled: true, percent: "" }],
                   });
                 }}
+                t={t}
               />
             </Section>
 
-            <Section title="Google Apps Script URL">
-              <div style={{ fontSize: 13, color: "#888", marginBottom: 10, lineHeight: 1.7 }}>
+            <Section title="Google Apps Script URL" t={t}>
+              <div style={{ fontSize: 13, color: t.textSub, marginBottom: 10, lineHeight: 1.7 }}>
                 GASをデプロイして取得したURLを貼り付けてください。
                 <br />
                 <span
-                  style={{ color: "#ff6b00", cursor: "pointer", textDecoration: "underline" }}
+                  style={{ color: t.accent, cursor: "pointer", textDecoration: "underline" }}
                   onClick={() => setTab("gas")}
                 >
-                  📄 GASスクリプトの確認・コピーはこちら
+                  GASスクリプトの確認・コピーはこちら
                 </span>
               </div>
               <textarea
@@ -1182,38 +1245,25 @@ function doPostBackup(e) {
                 placeholder="https://script.google.com/macros/s/..."
                 rows={3}
                 style={{
-                  width: "100%",
-                  background: "#111",
-                  border: "1px solid #333",
-                  borderRadius: 8,
-                  color: "#f0f0f0",
-                  padding: "10px 12px",
-                  fontSize: 13,
-                  resize: "none",
-                  boxSizing: "border-box",
-                  fontFamily: "monospace",
+                  width: "100%", background: t.input, border: `1px solid ${t.inputBorder}`,
+                  borderRadius: 8, color: t.text, padding: "10px 12px",
+                  fontSize: 13, resize: "none", boxSizing: "border-box", fontFamily: "monospace",
                 }}
               />
             </Section>
 
             <div style={{
-              background: "#1a1a0a",
-              border: "1px solid #554400",
-              borderRadius: 10,
-              padding: "14px 16px",
-              fontSize: 13,
-              color: "#aaa",
-              lineHeight: 1.8,
+              background: t.infoBg, border: `1px solid ${t.infoBorder}`,
+              borderRadius: 10, padding: "14px 16px", fontSize: 13, color: t.infoSub, lineHeight: 1.8,
             }}>
-              <div style={{ color: "#ffcc00", fontWeight: 700, marginBottom: 6 }}>📋 設定手順</div>
-              <div>① GASスクリプトをコピー</div>
-              <div>② スプレッドシートを開く</div>
-              <div>③ 拡張機能 → Apps Script</div>
-              <div>④ スクリプト貼り付けて保存</div>
-              <div>⑤ デプロイ → 新しいデプロイ</div>
-              <div>⑥ 種類：ウェブアプリ</div>
-              <div>⑦ アクセス：全員</div>
-              <div>⑧ デプロイURLをここに貼る</div>
+              <div style={{ color: t.infoText, fontWeight: 700, marginBottom: 6 }}>設定手順</div>
+              <div>1. GASスクリプトをコピー</div>
+              <div>2. スプレッドシートを開く</div>
+              <div>3. 拡張機能 → Apps Script</div>
+              <div>4. スクリプト貼り付けて保存</div>
+              <div>5. デプロイ → 新しいデプロイ</div>
+              <div>6. 種類：ウェブアプリ / アクセス：全員</div>
+              <div>7. デプロイURLをここに貼る</div>
             </div>
           </div>
         )}
@@ -1224,14 +1274,7 @@ function doPostBackup(e) {
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <button
                 onClick={() => setTab("settings")}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "#ff6b00",
-                  fontSize: 20,
-                  cursor: "pointer",
-                  padding: 0,
-                }}
+                style={{ background: "transparent", border: "none", color: t.accent, fontSize: 20, cursor: "pointer", padding: 0 }}
               >
                 ←
               </button>
@@ -1239,32 +1282,21 @@ function doPostBackup(e) {
             </div>
 
             <div style={{
-              background: "#0d1117",
-              border: "1px solid #333",
-              borderRadius: 12,
-              padding: "16px",
-              whiteSpace: "pre-wrap",
-              fontSize: 12,
-              fontFamily: "monospace",
-              color: "#c9d1d9",
-              lineHeight: 1.6,
-              overflowX: "auto",
+              background: t.codeBg, border: `1px solid ${t.inputBorder}`,
+              borderRadius: 12, padding: "16px",
+              whiteSpace: "pre-wrap", fontSize: 12, fontFamily: "monospace",
+              color: t.codeText, lineHeight: 1.6, overflowX: "auto",
             }}>
               {gasScript}
             </div>
 
-            <GasCopyBtn script={gasScript} />
+            <GasCopyBtn script={gasScript} t={t} />
 
             <div style={{
-              background: "#1a1a0a",
-              border: "1px solid #554400",
-              borderRadius: 10,
-              padding: "14px 16px",
-              fontSize: 13,
-              color: "#aaa",
-              lineHeight: 1.8,
+              background: t.infoBg, border: `1px solid ${t.infoBorder}`,
+              borderRadius: 10, padding: "14px 16px", fontSize: 13, color: t.infoSub, lineHeight: 1.8,
             }}>
-              <div style={{ color: "#ffcc00", fontWeight: 700, marginBottom: 6 }}>⚠️ セットアップ手順</div>
+              <div style={{ color: t.infoText, fontWeight: 700, marginBottom: 6 }}>セットアップ手順</div>
               <div>1. スクリプトを貼り付けて保存</div>
               <div>2. <b>showHeaders</b> を実行（▶ボタン）</div>
               <div>3. 「実行ログ」で列番号を確認</div>
@@ -1281,7 +1313,7 @@ function doPostBackup(e) {
   );
 }
 
-function AddStaffInput({ onAdd }) {
+function AddStaffInput({ onAdd, t }) {
   const [name, setName] = useState("");
   return (
     <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
@@ -1292,27 +1324,15 @@ function AddStaffInput({ onAdd }) {
         placeholder="スタッフ名を入力"
         onKeyDown={(e) => { if (e.key === "Enter") { onAdd(name); setName(""); } }}
         style={{
-          flex: 1,
-          background: "#111",
-          border: "1px solid #333",
-          borderRadius: 8,
-          color: "#f0f0f0",
-          padding: "8px 12px",
-          fontSize: 14,
-          outline: "none",
+          flex: 1, background: t.input, border: `1px solid ${t.inputBorder}`,
+          borderRadius: 8, color: t.text, padding: "8px 12px", fontSize: 14, outline: "none",
         }}
       />
       <button
         onClick={() => { onAdd(name); setName(""); }}
         style={{
-          padding: "8px 16px",
-          background: "#ff6b00",
-          color: "#fff",
-          border: "none",
-          borderRadius: 8,
-          fontSize: 14,
-          fontWeight: 700,
-          cursor: "pointer",
+          padding: "8px 16px", background: t.accent, color: "#fff",
+          border: "none", borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: "pointer",
         }}
       >
         追加
@@ -1321,7 +1341,7 @@ function AddStaffInput({ onAdd }) {
   );
 }
 
-function GasCopyBtn({ script }) {
+function GasCopyBtn({ script, t }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -1331,59 +1351,40 @@ function GasCopyBtn({ script }) {
         setTimeout(() => setCopied(false), 2000);
       }}
       style={{
-        width: "100%",
-        padding: "14px 0",
-        background: copied ? "#1a3a2a" : "linear-gradient(135deg, #ff6b00, #ff9500)",
-        color: copied ? "#4ade80" : "#fff",
-        border: "none",
-        borderRadius: 12,
-        fontSize: 15,
-        fontWeight: 700,
-        cursor: "pointer",
+        width: "100%", padding: "14px 0",
+        background: copied ? t.successBg : t.accentGrad,
+        color: copied ? t.successText : "#fff",
+        border: "none", borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: "pointer",
       }}
     >
-      {copied ? "✅ コピーしました！" : "📋 スクリプトをコピー"}
+      {copied ? "コピーしました！" : "スクリプトをコピー"}
     </button>
   );
 }
 
-function Section({ title, children }) {
+function Section({ title, children, t }) {
   return (
     <div style={{
-      background: "#1a1a1a",
-      borderRadius: 12,
-      padding: "16px",
-      border: "1px solid #2a2a2a",
+      background: t.card, borderRadius: 12, padding: "16px", border: `1px solid ${t.cardBorder}`,
     }}>
-      <div style={{
-        fontSize: 11,
-        color: "#ff6b00",
-        fontWeight: 700,
-        letterSpacing: 2,
-        marginBottom: 12,
-      }}>
-        {title.toUpperCase()}
+      <div style={{ fontSize: 11, color: t.accent, fontWeight: 700, letterSpacing: 2, marginBottom: 12 }}>
+        {typeof title === "string" ? title.toUpperCase() : title}
       </div>
       {children}
     </div>
   );
 }
 
-function Row({ label, children }) {
+function Row({ label, children, t }) {
   return (
-    <div style={{
-      display: "flex",
-      alignItems: "center",
-      gap: 12,
-      marginBottom: 10,
-    }}>
-      <div style={{ width: 70, fontSize: 13, color: "#888", flexShrink: 0 }}>{label}</div>
+    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+      <div style={{ width: 70, fontSize: 13, color: t.textSub, flexShrink: 0 }}>{label}</div>
       <div style={{ flex: 1 }}>{children}</div>
     </div>
   );
 }
 
-function Input({ value, onChange, placeholder, type = "text", suffix }) {
+function Input({ value, onChange, placeholder, type = "text", suffix, t }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
       <input
@@ -1393,52 +1394,34 @@ function Input({ value, onChange, placeholder, type = "text", suffix }) {
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         style={{
-          flex: 1,
-          background: "#111",
-          border: "1px solid #333",
-          borderRadius: 8,
-          color: "#f0f0f0",
-          padding: "8px 12px",
-          fontSize: 15,
-          outline: "none",
-          width: "100%",
+          flex: 1, background: t.input, border: `1px solid ${t.inputBorder}`,
+          borderRadius: 8, color: t.text, padding: "8px 12px", fontSize: 15, outline: "none", width: "100%",
         }}
       />
-      {suffix && <span style={{ fontSize: 13, color: "#666", flexShrink: 0 }}>{suffix}</span>}
+      {suffix && <span style={{ fontSize: 13, color: t.textMuted, flexShrink: 0 }}>{suffix}</span>}
     </div>
   );
 }
 
-function Toggle({ active, onClick }) {
+function Toggle({ active, onClick, t }) {
   return (
     <div
       onClick={onClick}
       style={{
-        width: 44,
-        height: 26,
-        borderRadius: 13,
-        background: active ? "#ff6b00" : "#333",
-        position: "relative",
-        cursor: "pointer",
-        transition: "background 0.2s",
-        flexShrink: 0,
+        width: 44, height: 26, borderRadius: 13,
+        background: active ? t.accent : t.inputBorder,
+        position: "relative", cursor: "pointer", transition: "background 0.2s", flexShrink: 0,
       }}
     >
       <div style={{
-        width: 20,
-        height: 20,
-        borderRadius: "50%",
-        background: "#fff",
-        position: "absolute",
-        top: 3,
-        left: active ? 21 : 3,
-        transition: "left 0.2s",
+        width: 20, height: 20, borderRadius: "50%", background: "#fff",
+        position: "absolute", top: 3, left: active ? 21 : 3, transition: "left 0.2s",
       }} />
     </div>
   );
 }
 
-function AbsenceCopyBtn({ name, date, onAbsence }) {
+function AbsenceCopyBtn({ name, date, onAbsence, t }) {
   const [copied, setCopied] = useState(false);
   const text = `${name}\n本日${date}休みです`;
   return (
@@ -1450,24 +1433,19 @@ function AbsenceCopyBtn({ name, date, onAbsence }) {
         onAbsence?.();
       }}
       style={{
-        width: "100%",
-        padding: "14px 0",
-        background: copied ? "#1a3a2a" : "transparent",
-        color: copied ? "#4ade80" : "#888",
-        border: `1px solid ${copied ? "#2d8a4e" : "#444"}`,
-        borderRadius: 12,
-        fontSize: 14,
-        fontWeight: 700,
-        cursor: "pointer",
-        transition: "all 0.2s",
+        width: "100%", padding: "14px 0",
+        background: copied ? t.successBg : "transparent",
+        color: copied ? t.successText : t.textSub,
+        border: `1px solid ${copied ? t.successBorder : t.inputBorder}`,
+        borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "all 0.2s",
       }}
     >
-      {copied ? "✅ コピーしました！" : "🏖 休み報告をコピー"}
+      {copied ? "コピーしました！" : "休み報告をコピー"}
     </button>
   );
 }
 
-function MoneyInput({ value, onChange, placeholder }) {
+function MoneyInput({ value, onChange, placeholder, t }) {
   const [editing, setEditing] = useState(false);
   const display = editing ? String(value).replace(/,/g, "") : numDisplay(value);
   return (
@@ -1481,18 +1459,11 @@ function MoneyInput({ value, onChange, placeholder }) {
         onBlur={() => setEditing(false)}
         placeholder={placeholder}
         style={{
-          flex: 1,
-          background: "#111",
-          border: "1px solid #333",
-          borderRadius: 8,
-          color: "#f0f0f0",
-          padding: "8px 12px",
-          fontSize: 15,
-          outline: "none",
-          width: "100%",
+          flex: 1, background: t.input, border: `1px solid ${t.inputBorder}`,
+          borderRadius: 8, color: t.text, padding: "8px 12px", fontSize: 15, outline: "none", width: "100%",
         }}
       />
-      <span style={{ fontSize: 13, color: "#666", flexShrink: 0 }}>円</span>
+      <span style={{ fontSize: 13, color: t.textMuted, flexShrink: 0 }}>円</span>
     </div>
   );
 }
@@ -1501,7 +1472,7 @@ function Req() {
   return <span style={{ color: "#f87171", marginLeft: 2, fontSize: 11 }}>*</span>;
 }
 
-function HistoryCopyBtn({ text }) {
+function HistoryCopyBtn({ text, t }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -1511,16 +1482,11 @@ function HistoryCopyBtn({ text }) {
         setTimeout(() => setCopied(false), 2000);
       }}
       style={{
-        width: "100%",
-        padding: "14px 0",
-        background: copied ? "#1a3a2a" : "#1a1a1a",
-        color: copied ? "#4ade80" : "#f0f0f0",
-        border: `2px solid ${copied ? "#2d8a4e" : "#ff6b00"}`,
-        borderRadius: 12,
-        fontSize: 16,
-        fontWeight: 700,
-        cursor: "pointer",
-        transition: "all 0.2s",
+        width: "100%", padding: "14px 0",
+        background: copied ? t.successBg : t.card,
+        color: copied ? t.successText : t.text,
+        border: `2px solid ${copied ? t.successBorder : t.accent}`,
+        borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer", transition: "all 0.2s",
       }}
     >
       {copied ? "コピーしました！" : "テキストをコピー"}
@@ -1528,19 +1494,16 @@ function HistoryCopyBtn({ text }) {
   );
 }
 
-function TabBtn({ label, active, onClick }) {
+function TabBtn({ label, active, onClick, t }) {
   return (
     <button
       onClick={onClick}
       style={{
         padding: "6px 10px",
-        background: active ? "#ff6b00" : "transparent",
-        color: active ? "#fff" : "#666",
-        border: `1px solid ${active ? "#ff6b00" : "#333"}`,
-        borderRadius: 6,
-        fontSize: 12,
-        fontWeight: 700,
-        cursor: "pointer",
+        background: active ? t.accent : "transparent",
+        color: active ? "#fff" : t.textMuted,
+        border: `1px solid ${active ? t.accent : t.inputBorder}`,
+        borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer",
       }}
     >
       {label}
