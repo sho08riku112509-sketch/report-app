@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 const STORAGE_KEY = "reportApp_settings";
 const HISTORY_KEY = "reportApp_history";
@@ -169,6 +169,9 @@ export default function App() {
   const [selectedHistory, setSelectedHistory] = useState(null);
   const [isAbsence, setIsAbsence] = useState(false);
   const [partnerInputModes, setPartnerInputModes] = useState([]);
+  const [adminMode, setAdminMode] = useState(false);
+  const [adminTapCount, setAdminTapCount] = useState(0);
+  const adminTapTimer = useRef(null);
 
   const t = THEMES[settings.theme] || THEMES.orangeDark;
 
@@ -1451,7 +1454,26 @@ function res(obj) {
         {tab === "settings" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-            <Section title="基本設定" t={t}>
+            <Section title="基本設定" t={t} onTitleClick={() => {
+              setAdminTapCount(c => {
+                const next = c + 1;
+                clearTimeout(adminTapTimer.current);
+                if (next >= 5) {
+                  setAdminMode(m => !m);
+                  return 0;
+                }
+                adminTapTimer.current = setTimeout(() => setAdminTapCount(0), 2000);
+                return next;
+              });
+            }}>
+              {adminMode && (
+                <div style={{
+                  background: t.accent, color: "#fff", fontSize: 11, fontWeight: 700,
+                  padding: "4px 10px", borderRadius: 6, marginBottom: 10, display: "inline-block",
+                }}>
+                  🔧 管理者モード ON
+                </div>
+              )}
               <Row label="自分の名前" t={t}>
                 <Input value={settings.name} onChange={(v) => saveSettings({ ...settings, name: v })} placeholder="例：濱口翔太" t={t} />
               </Row>
@@ -1479,7 +1501,7 @@ function res(obj) {
               </div>
             </Section>
 
-            <Section title="スタッフ管理" t={t}>
+            {adminMode && <Section title="スタッフ管理" t={t}>
               <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 10, lineHeight: 1.6 }}>
                 マン選択時のプルダウンに表示。割合は研修生日当の計算に使用（売上×割合%×25%）。
               </div>
@@ -1542,45 +1564,47 @@ function res(obj) {
                 }}
                 t={t}
               />
-            </Section>
+            </Section>}
 
-            <Section title="Google Apps Script URL" t={t}>
-              <div style={{ fontSize: 13, color: t.textSub, marginBottom: 10, lineHeight: 1.7 }}>
-                GASをデプロイして取得したURLを貼り付けてください。
-                <br />
-                <span
-                  style={{ color: t.accent, cursor: "pointer", textDecoration: "underline" }}
-                  onClick={() => setTab("gas")}
-                >
-                  GASスクリプトの確認・コピーはこちら
-                </span>
+            {adminMode && <>
+              <Section title="Google Apps Script URL" t={t}>
+                <div style={{ fontSize: 13, color: t.textSub, marginBottom: 10, lineHeight: 1.7 }}>
+                  GASをデプロイして取得したURLを貼り付けてください。
+                  <br />
+                  <span
+                    style={{ color: t.accent, cursor: "pointer", textDecoration: "underline" }}
+                    onClick={() => setTab("gas")}
+                  >
+                    GASスクリプトの確認・コピーはこちら
+                  </span>
+                </div>
+                <textarea
+                  value={settings.gasUrl}
+                  onChange={(e) => saveSettings({ ...settings, gasUrl: e.target.value })}
+                  placeholder="https://script.google.com/macros/s/..."
+                  rows={3}
+                  style={{
+                    width: "100%", background: t.input, border: `1px solid ${t.inputBorder}`,
+                    borderRadius: 8, color: t.text, padding: "10px 12px",
+                    fontSize: 13, resize: "none", boxSizing: "border-box", fontFamily: "monospace",
+                  }}
+                />
+              </Section>
+
+              <div style={{
+                background: t.infoBg, border: `1px solid ${t.infoBorder}`,
+                borderRadius: 10, padding: "14px 16px", fontSize: 13, color: t.infoSub, lineHeight: 1.8,
+              }}>
+                <div style={{ color: t.infoText, fontWeight: 700, marginBottom: 6 }}>設定手順</div>
+                <div>1. GASスクリプトをコピー</div>
+                <div>2. スプレッドシートを開く</div>
+                <div>3. 拡張機能 → Apps Script</div>
+                <div>4. スクリプト貼り付けて保存</div>
+                <div>5. デプロイ → 新しいデプロイ</div>
+                <div>6. 種類：ウェブアプリ / アクセス：全員</div>
+                <div>7. デプロイURLをここに貼る</div>
               </div>
-              <textarea
-                value={settings.gasUrl}
-                onChange={(e) => saveSettings({ ...settings, gasUrl: e.target.value })}
-                placeholder="https://script.google.com/macros/s/..."
-                rows={3}
-                style={{
-                  width: "100%", background: t.input, border: `1px solid ${t.inputBorder}`,
-                  borderRadius: 8, color: t.text, padding: "10px 12px",
-                  fontSize: 13, resize: "none", boxSizing: "border-box", fontFamily: "monospace",
-                }}
-              />
-            </Section>
-
-            <div style={{
-              background: t.infoBg, border: `1px solid ${t.infoBorder}`,
-              borderRadius: 10, padding: "14px 16px", fontSize: 13, color: t.infoSub, lineHeight: 1.8,
-            }}>
-              <div style={{ color: t.infoText, fontWeight: 700, marginBottom: 6 }}>設定手順</div>
-              <div>1. GASスクリプトをコピー</div>
-              <div>2. スプレッドシートを開く</div>
-              <div>3. 拡張機能 → Apps Script</div>
-              <div>4. スクリプト貼り付けて保存</div>
-              <div>5. デプロイ → 新しいデプロイ</div>
-              <div>6. 種類：ウェブアプリ / アクセス：全員</div>
-              <div>7. デプロイURLをここに貼る</div>
-            </div>
+            </>}
 
             {/* テーマ選択 */}
             <Section title="テーマ" t={t}>
@@ -1614,7 +1638,7 @@ function res(obj) {
         )}
 
         {/* GAS SCRIPT TAB */}
-        {tab === "gas" && (
+        {tab === "gas" && adminMode && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <button
@@ -1723,12 +1747,15 @@ function GasCopyBtn({ script, t }) {
   );
 }
 
-function Section({ title, children, t }) {
+function Section({ title, children, t, onTitleClick }) {
   return (
     <div style={{
       background: t.card, borderRadius: 12, padding: "16px", border: `1px solid ${t.cardBorder}`,
     }}>
-      <div style={{ fontSize: 11, color: t.accent, fontWeight: 700, letterSpacing: 2, marginBottom: 12 }}>
+      <div
+        onClick={onTitleClick}
+        style={{ fontSize: 11, color: t.accent, fontWeight: 700, letterSpacing: 2, marginBottom: 12, cursor: onTitleClick ? "pointer" : "default", userSelect: "none" }}
+      >
         {typeof title === "string" ? title.toUpperCase() : title}
       </div>
       {children}
