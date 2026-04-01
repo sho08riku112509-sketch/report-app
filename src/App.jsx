@@ -111,6 +111,7 @@ const defaultForm = {
   kokinAmount: "",
   manCount: 1,
   partnerNames: [],
+  partnerIsTrainee: [],
   traineeMode: false,
   traineeName: "",
 };
@@ -203,13 +204,11 @@ export default function App() {
 
   // 日当計算
   const myDailyPay = settings.myPercent ? Math.round(total * parseFloat(settings.myPercent) / 100) : 0;
+  // 助手の日当 = 売上合計 × 25%（2マン以上で相手がいる場合）
   const traineeDailyPay = (() => {
     if (form.manCount < 2 || form.traineeMode) return 0;
-    const name = form.partnerNames[0];
-    if (!name) return 0;
-    const staff = settings.staff.find(s => s.name === name);
-    if (!staff?.percent) return 0;
-    return Math.round(total * parseFloat(staff.percent) / 100 * 0.25);
+    if (!form.partnerNames.some(n => n.trim())) return 0;
+    return Math.round(total * 0.25);
   })();
 
   const generateText = useCallback(() => {
@@ -262,9 +261,12 @@ export default function App() {
     lines.push(`合計${total.toLocaleString()}円`);
 
     if (form.manCount >= 2) {
-      const names = form.partnerNames.filter(n => n.trim()).join("・");
-      if (names) {
-        lines.push(`${names}と${form.manCount}マンです`);
+      const namesParts = form.partnerNames.map((n, i) => {
+        if (!n.trim()) return "";
+        return (form.partnerIsTrainee || [])[i] ? `${n}（研修）` : n;
+      }).filter(Boolean);
+      if (namesParts.length > 0) {
+        lines.push(`${namesParts.join("・")}と${form.manCount}マンです`);
       } else {
         lines.push(`${form.manCount}マンです`);
       }
@@ -492,9 +494,10 @@ export default function App() {
   const setManCount = (n) => {
     setForm(f => {
       const names = [...f.partnerNames];
-      while (names.length < n - 1) names.push("");
-      while (names.length > n - 1) names.pop();
-      return { ...f, manCount: n, partnerNames: names };
+      const trainee = [...(f.partnerIsTrainee || [])];
+      while (names.length < n - 1) { names.push(""); trainee.push(false); }
+      while (names.length > n - 1) { names.pop(); trainee.pop(); }
+      return { ...f, manCount: n, partnerNames: names, partnerIsTrainee: trainee };
     });
     setPartnerInputModes(prev => {
       const modes = [...prev];
@@ -509,6 +512,14 @@ export default function App() {
       const names = [...f.partnerNames];
       names[index] = value;
       return { ...f, partnerNames: names };
+    });
+  };
+
+  const togglePartnerTrainee = (index) => {
+    setForm(f => {
+      const trainee = [...(f.partnerIsTrainee || [])];
+      trainee[index] = !trainee[index];
+      return { ...f, partnerIsTrainee: trainee };
     });
   };
 
@@ -937,60 +948,81 @@ function res(obj) {
                   />
                 </Row>
               )}
-              {/* ⑩ 相手名：選択＋直接入力 */}
+              {/* ⑩ 相手名：選択＋直接入力＋研修チェック */}
               {form.manCount >= 2 && form.partnerNames.map((name, i) => (
-                <Row label={`相手${form.manCount > 2 ? (i + 1) : ""}`} key={i} t={t}>
-                  {partnerInputModes[i] === "input" ? (
-                    <div>
+                <div key={i} style={{ marginBottom: 10 }}>
+                  <Row label={`相手${form.manCount > 2 ? (i + 1) : ""}`} t={t}>
+                    {partnerInputModes[i] === "input" ? (
+                      <div>
+                        <Input
+                          value={name}
+                          onChange={(v) => updatePartnerName(i, v)}
+                          placeholder="名前を入力"
+                          t={t}
+                        />
+                        {enabledStaff.length > 0 && (
+                          <button
+                            onClick={() => switchPartnerToSelect(i)}
+                            style={{
+                              background: "transparent", border: "none",
+                              color: t.accent, fontSize: 12, cursor: "pointer",
+                              padding: "4px 0", marginTop: 4,
+                            }}
+                          >
+                            ← 一覧から選ぶ
+                          </button>
+                        )}
+                      </div>
+                    ) : enabledStaff.length > 0 ? (
+                      <select
+                        value={name}
+                        onChange={(e) => handlePartnerSelect(i, e.target.value)}
+                        style={{
+                          width: "100%",
+                          background: t.input,
+                          border: `1px solid ${t.inputBorder}`,
+                          borderRadius: 8,
+                          color: name ? t.text : t.textMuted,
+                          padding: "8px 12px",
+                          fontSize: 15,
+                          outline: "none",
+                        }}
+                      >
+                        <option value="">選択してください</option>
+                        {enabledStaff.map((s) => (
+                          <option key={s.id} value={s.name}>{s.name}</option>
+                        ))}
+                        <option value="__manual__">直接入力</option>
+                      </select>
+                    ) : (
                       <Input
                         value={name}
                         onChange={(v) => updatePartnerName(i, v)}
-                        placeholder="名前を入力"
+                        placeholder="例：佐藤優光"
                         t={t}
                       />
-                      {enabledStaff.length > 0 && (
-                        <button
-                          onClick={() => switchPartnerToSelect(i)}
-                          style={{
-                            background: "transparent", border: "none",
-                            color: t.accent, fontSize: 12, cursor: "pointer",
-                            padding: "4px 0", marginTop: 4,
-                          }}
-                        >
-                          ← 一覧から選ぶ
-                        </button>
-                      )}
+                    )}
+                  </Row>
+                  {/* 研修チェックボックス */}
+                  <div
+                    onClick={() => togglePartnerTrainee(i)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      paddingLeft: 82, cursor: "pointer", marginTop: 2,
+                    }}
+                  >
+                    <div style={{
+                      width: 18, height: 18, borderRadius: 4,
+                      border: `2px solid ${(form.partnerIsTrainee || [])[i] ? t.accent : t.inputBorder}`,
+                      background: (form.partnerIsTrainee || [])[i] ? t.accent : "transparent",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 12, color: "#fff", fontWeight: 900, flexShrink: 0,
+                    }}>
+                      {(form.partnerIsTrainee || [])[i] && "✓"}
                     </div>
-                  ) : enabledStaff.length > 0 ? (
-                    <select
-                      value={name}
-                      onChange={(e) => handlePartnerSelect(i, e.target.value)}
-                      style={{
-                        width: "100%",
-                        background: t.input,
-                        border: `1px solid ${t.inputBorder}`,
-                        borderRadius: 8,
-                        color: name ? t.text : t.textMuted,
-                        padding: "8px 12px",
-                        fontSize: 15,
-                        outline: "none",
-                      }}
-                    >
-                      <option value="">選択してください</option>
-                      {enabledStaff.map((s) => (
-                        <option key={s.id} value={s.name}>{s.name}</option>
-                      ))}
-                      <option value="__manual__">直接入力</option>
-                    </select>
-                  ) : (
-                    <Input
-                      value={name}
-                      onChange={(v) => updatePartnerName(i, v)}
-                      placeholder="例：佐藤優光"
-                      t={t}
-                    />
-                  )}
-                </Row>
+                    <span style={{ fontSize: 13, color: t.textSub }}>研修</span>
+                  </div>
+                </div>
               ))}
             </Section>
 
