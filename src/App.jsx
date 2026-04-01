@@ -107,7 +107,7 @@ const defaultForm = {
   count: "",
   originAmount: "",
   additions: Object.fromEntries(
-    addItems.map((i) => [i.key, { count: "", amount: "", enabled: false, detail: "" }])
+    addItems.map((i) => [i.key, { count: "", amount: "", enabled: false, detail: null }])
   ),
   kokinCount: "",
   kokinAmount: "",
@@ -867,12 +867,13 @@ function res(obj) {
                           ) : (
                             <MoneyInput value={a.amount} onChange={(v) => updateAddition(item.key, "amount", v)} t={t} />
                           )}
-                          {a.detail ? (
+                          {a.detail !== null && a.detail !== undefined ? (
                             <input
                               type="text"
                               value={a.detail}
                               onChange={(e) => updateAddition(item.key, "detail", e.target.value)}
                               placeholder={item.key === "sonota" ? "例：抗菌2台" : "例：他者分"}
+                              autoFocus
                               style={{
                                 background: t.input, border: `1px solid ${t.inputBorder}`,
                                 borderRadius: 6, color: t.text, padding: "5px 10px",
@@ -881,7 +882,7 @@ function res(obj) {
                             />
                           ) : (
                             <button
-                              onClick={() => updateAddition(item.key, "detail", " ")}
+                              onClick={() => updateAddition(item.key, "detail", "")}
                               style={{
                                 background: "transparent", border: "none",
                                 color: t.textMuted, fontSize: 11, cursor: "pointer",
@@ -1811,7 +1812,7 @@ function AbsenceCopyBtn({ name, date, onAbsence, t }) {
         borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "all 0.2s",
       }}
     >
-      {copied ? "コピーしました！" : "休み報告をコピー"}
+      {copied ? "コピーしました！" : "休み報告"}
     </button>
   );
 }
