@@ -204,11 +204,11 @@ export default function App() {
 
   // 日当計算
   const myDailyPay = settings.myPercent ? Math.round(total * parseFloat(settings.myPercent) / 100) : 0;
-  // 助手の日当 = 売上合計 × 25%（2マン以上で相手がいる場合）
+  // 助手の日当 = 売上合計 × 報告者の% × 25%
   const traineeDailyPay = (() => {
-    if (form.manCount < 2 || form.traineeMode) return 0;
+    if (form.manCount < 2 || form.traineeMode || !settings.myPercent) return 0;
     if (!form.partnerNames.some(n => n.trim())) return 0;
-    return Math.round(total * 0.25);
+    return Math.round(total * parseFloat(settings.myPercent) / 100 * 0.25);
   })();
 
   const generateText = useCallback(() => {
