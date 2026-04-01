@@ -86,6 +86,16 @@ const addItems = [
   { key: "ince", label: "インセ", hasCount: true },
 ];
 
+// ⑫ 標準単価ルール（1マン時のみチェック）
+const PRICE_RULES = {
+  naiki: { type: "multi", prices: [6000, 6300], tolerance: 0.2 },
+  gaiki: { type: "multi", prices: [1500, 2750], tolerance: 0.2 },
+  robo: { type: "fixed", price: 3000, tolerance: 0.2 },
+  rf: { type: "fixed", price: 10400, tolerance: 0.2 },
+  mizu: { type: "range", min: 5500, max: 11000 },
+  ince: { type: "range", min: 500, max: 1000 },
+};
+
 const defaultForm = {
   date: (() => {
     const d = new Date();
@@ -155,6 +165,7 @@ export default function App() {
   const [history, setHistory] = useState([]);
   const [selectedHistory, setSelectedHistory] = useState(null);
   const [isAbsence, setIsAbsence] = useState(false);
+  const [partnerInputModes, setPartnerInputModes] = useState([]);
 
   const t = THEMES[settings.theme] || THEMES.orangeDark;
 
@@ -162,7 +173,6 @@ export default function App() {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       const parsed = { ...defaultSettings, ...JSON.parse(saved) };
-      // staff migration: add percent field if missing
       if (parsed.staff) {
         parsed.staff = parsed.staff.map(s => ({ percent: "", ...s }));
       }
@@ -286,6 +296,43 @@ export default function App() {
     return errs;
   };
 
+  // ⑫ 単価チェック（1マン時のみ）
+  const checkPrices = () => {
+    if (form.manCount !== 1 || form.traineeMode) return [];
+    const warnings = [];
+    addItems.forEach((item) => {
+      const rule = PRICE_RULES[item.key];
+      if (!rule) return;
+      const a = form.additions[item.key];
+      if (!a?.enabled) return;
+      const count = parseInt(a.count) || 0;
+      const amount = formatNum(a.amount);
+      if (count === 0 || amount === 0) return;
+
+      if (rule.type === "multi") {
+        const ok = rule.prices.some(p => {
+          const expected = count * p;
+          return expected > 0 && Math.abs(amount - expected) / expected <= rule.tolerance;
+        });
+        if (!ok) {
+          const opts = rule.prices.map(p => `${(count * p).toLocaleString()}円`).join(" or ");
+          warnings.push(`${item.label}${count}台の金額が標準（${opts}）と大きくズレています。確認してください。`);
+        }
+      } else if (rule.type === "fixed") {
+        const expected = count * rule.price;
+        if (expected > 0 && Math.abs(amount - expected) / expected > rule.tolerance) {
+          warnings.push(`${item.label}${count}台の金額が標準（${expected.toLocaleString()}円）と大きくズレています。確認してください。`);
+        }
+      } else if (rule.type === "range") {
+        const perUnit = amount / count;
+        if (perUnit < rule.min || perUnit > rule.max) {
+          warnings.push(`${item.label}の1台あたり金額（${Math.round(perUnit).toLocaleString()}円）が標準範囲（${rule.min.toLocaleString()}〜${rule.max.toLocaleString()}円）外です。確認してください。`);
+        }
+      }
+    });
+    return warnings;
+  };
+
   const saveHistory = (reportText) => {
     const entry = {
       id: Date.now().toString(),
@@ -313,7 +360,6 @@ export default function App() {
 
   const restoreFromHistory = (entry) => {
     const snap = { ...entry.formSnapshot };
-    // 旧形式（manType/partnerName）→ 新形式（manCount/partnerNames）変換
     if (snap.manType !== undefined && snap.manCount === undefined) {
       snap.manCount = parseInt(snap.manType) || 1;
       snap.partnerNames = snap.partnerName ? [snap.partnerName] : [];
@@ -321,6 +367,7 @@ export default function App() {
       delete snap.partnerName;
     }
     setForm(snap);
+    setPartnerInputModes(Array(Math.max(0, (snap.manCount || 1) - 1)).fill("select"));
     setSelectedHistory(null);
     setTab("form");
   };
@@ -334,14 +381,19 @@ export default function App() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleSubmit = async () => {
+  // ⑪ 送信前に確認画面を表示
+  const handlePreSubmit = () => {
     const errs = validate();
     if (errs.length > 0) {
       setErrors(errs);
       return;
     }
     setErrors([]);
+    setTab("confirm");
+  };
 
+  // 実際の送信処理
+  const handleActualSubmit = async () => {
     if (!settings.gasUrl) {
       setSendStatus("error_no_url");
       setTab("result");
@@ -413,6 +465,7 @@ export default function App() {
     setSubmitted(false);
     setSendStatus(null);
     setIsAbsence(false);
+    setPartnerInputModes([]);
     setTab("form");
   };
 
@@ -443,6 +496,12 @@ export default function App() {
       while (names.length > n - 1) names.pop();
       return { ...f, manCount: n, partnerNames: names };
     });
+    setPartnerInputModes(prev => {
+      const modes = [...prev];
+      while (modes.length < n - 1) modes.push("select");
+      while (modes.length > n - 1) modes.pop();
+      return modes;
+    });
   };
 
   const updatePartnerName = (index, value) => {
@@ -451,6 +510,29 @@ export default function App() {
       names[index] = value;
       return { ...f, partnerNames: names };
     });
+  };
+
+  // ⑩ select↔input切り替え
+  const handlePartnerSelect = (i, value) => {
+    if (value === "__manual__") {
+      setPartnerInputModes(prev => {
+        const modes = [...prev];
+        modes[i] = "input";
+        return modes;
+      });
+      updatePartnerName(i, "");
+    } else {
+      updatePartnerName(i, value);
+    }
+  };
+
+  const switchPartnerToSelect = (i) => {
+    setPartnerInputModes(prev => {
+      const modes = [...prev];
+      modes[i] = "select";
+      return modes;
+    });
+    updatePartnerName(i, "");
   };
 
   const enabledStaff = settings.staff.filter((s) => s.enabled);
@@ -577,6 +659,9 @@ function res(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }`;
 
+  // 確認画面用：単価警告
+  const priceWarnings = checkPrices();
+
   return (
     <div style={{
       minHeight: "100vh",
@@ -606,7 +691,7 @@ function res(obj) {
           <div style={{ fontSize: 18, fontWeight: 800 }}>日報送信アプリ</div>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
-          <TabBtn label="入力" active={tab === "form"} onClick={() => setTab("form")} t={t} />
+          <TabBtn label="入力" active={tab === "form" || tab === "confirm"} onClick={() => setTab("form")} t={t} />
           <TabBtn label="報告文" active={tab === "result"} onClick={() => setTab("result")} t={t} />
           <TabBtn label="履歴" active={tab === "history"} onClick={() => { setTab("history"); setSelectedHistory(null); }} t={t} />
           <TabBtn label="⚙" active={tab === "settings"} onClick={() => setTab("settings")} t={t} />
@@ -848,12 +933,34 @@ function res(obj) {
                   />
                 </Row>
               )}
+              {/* ⑩ 相手名：選択＋直接入力 */}
               {form.manCount >= 2 && form.partnerNames.map((name, i) => (
                 <Row label={`相手${form.manCount > 2 ? (i + 1) : ""}`} key={i} t={t}>
-                  {enabledStaff.length > 0 ? (
+                  {partnerInputModes[i] === "input" ? (
+                    <div>
+                      <Input
+                        value={name}
+                        onChange={(v) => updatePartnerName(i, v)}
+                        placeholder="名前を入力"
+                        t={t}
+                      />
+                      {enabledStaff.length > 0 && (
+                        <button
+                          onClick={() => switchPartnerToSelect(i)}
+                          style={{
+                            background: "transparent", border: "none",
+                            color: t.accent, fontSize: 12, cursor: "pointer",
+                            padding: "4px 0", marginTop: 4,
+                          }}
+                        >
+                          ← 一覧から選ぶ
+                        </button>
+                      )}
+                    </div>
+                  ) : enabledStaff.length > 0 ? (
                     <select
                       value={name}
-                      onChange={(e) => updatePartnerName(i, e.target.value)}
+                      onChange={(e) => handlePartnerSelect(i, e.target.value)}
                       style={{
                         width: "100%",
                         background: t.input,
@@ -869,6 +976,7 @@ function res(obj) {
                       {enabledStaff.map((s) => (
                         <option key={s.id} value={s.name}>{s.name}</option>
                       ))}
+                      <option value="__manual__">直接入力</option>
                     </select>
                   ) : (
                     <Input
@@ -882,9 +990,9 @@ function res(obj) {
               ))}
             </Section>
 
-            {/* 送信ボタン */}
+            {/* ⑪ 送信ボタン → 確認画面へ */}
             <button
-              onClick={handleSubmit}
+              onClick={handlePreSubmit}
               disabled={sending}
               style={{
                 width: "100%",
@@ -899,10 +1007,166 @@ function res(obj) {
                 letterSpacing: 2,
               }}
             >
-              {sending ? "送信中..." : "送信してスプレッドシートへ"}
+              {sending ? "送信中..." : "内容を確認する"}
             </button>
 
             <AbsenceCopyBtn name={settings.name} date={form.date} onAbsence={() => { setIsAbsence(true); setTab("result"); }} t={t} />
+
+            {/* ⑬ クリアボタン（目立たない場所） */}
+            <div style={{ marginTop: 30, textAlign: "center" }}>
+              <button
+                onClick={() => {
+                  if (window.confirm("入力内容をすべてクリアしますか？")) {
+                    handleReset();
+                  }
+                }}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: t.textMuted,
+                  fontSize: 11,
+                  cursor: "pointer",
+                  padding: "6px 12px",
+                  opacity: 0.6,
+                }}
+              >
+                入力をクリア
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ⑪ CONFIRM TAB - 送信確認画面 */}
+        {tab === "confirm" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, textAlign: "center", color: t.accent }}>
+              送信内容の確認
+            </div>
+
+            {/* 基本情報 */}
+            <div style={{ background: t.card, borderRadius: 12, padding: "16px", border: `1px solid ${t.cardBorder}` }}>
+              <ConfirmRow label="名前" value={settings.name} t={t} />
+              <ConfirmRow label="日付" value={form.date} t={t} />
+              {form.traineeMode ? (
+                <ConfirmRow label="研修同行" value={form.traineeName} t={t} />
+              ) : (
+                <>
+                  <ConfirmRow label="センター" value={form.origin} t={t} />
+                  <ConfirmRow label="件数" value={`${form.count}件`} t={t} />
+                  <ConfirmRow label="基本金額" value={`¥${formatNum(form.originAmount).toLocaleString()}`} t={t} />
+                </>
+              )}
+            </div>
+
+            {/* 追加内訳 */}
+            {!form.traineeMode && (
+              <div style={{ background: t.card, borderRadius: 12, padding: "16px", border: `1px solid ${t.cardBorder}` }}>
+                <div style={{ fontSize: 11, color: t.accent, fontWeight: 700, letterSpacing: 2, marginBottom: 12 }}>
+                  追加内訳
+                </div>
+                {addItems.filter(item => form.additions[item.key].enabled && formatNum(form.additions[item.key].amount) > 0).length === 0 ? (
+                  <div style={{ fontSize: 14, color: t.textMuted }}>追加なし</div>
+                ) : (
+                  addItems.map((item) => {
+                    const a = form.additions[item.key];
+                    if (!a.enabled || formatNum(a.amount) === 0) return null;
+                    return (
+                      <ConfirmRow
+                        key={item.key}
+                        label={item.hasCount && a.count ? `${item.label} ${a.count}台` : item.hasDetail && a.detail ? `${item.label}(${a.detail})` : item.label}
+                        value={`¥${formatNum(a.amount).toLocaleString()}`}
+                        t={t}
+                      />
+                    );
+                  })
+                )}
+                {formatNum(form.kokinCount) > 0 && (
+                  <ConfirmRow label={`抗菌 ${form.kokinCount}台（転記用）`} value={`¥${formatNum(form.kokinAmount).toLocaleString()}`} t={t} />
+                )}
+              </div>
+            )}
+
+            {/* 合計 */}
+            {!form.traineeMode && (
+              <div style={{
+                background: t.card,
+                border: `2px solid ${t.accent}`,
+                borderRadius: 12,
+                padding: "14px 18px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}>
+                <span style={{ fontSize: 16, fontWeight: 700, color: t.accent }}>合計</span>
+                <span style={{ fontSize: 24, fontWeight: 900 }}>¥{total.toLocaleString()}</span>
+              </div>
+            )}
+
+            {/* マン数 */}
+            <div style={{ background: t.card, borderRadius: 12, padding: "16px", border: `1px solid ${t.cardBorder}` }}>
+              <ConfirmRow
+                label="作業形態"
+                value={form.manCount >= 2
+                  ? `${form.partnerNames.filter(n => n.trim()).join("・")}と${form.manCount}マン`
+                  : "1マン"
+                }
+                t={t}
+              />
+            </div>
+
+            {/* ⑫ 単価チェック警告（1マン時のみ） */}
+            {priceWarnings.length > 0 && (
+              <div style={{
+                background: t.warnBg,
+                border: `1px solid ${t.warnBorder}`,
+                borderRadius: 10,
+                padding: "12px 16px",
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: t.warnText, marginBottom: 6 }}>
+                  ⚠ 金額チェック
+                </div>
+                {priceWarnings.map((w, i) => (
+                  <div key={i} style={{ fontSize: 13, color: t.warnText, lineHeight: 1.7 }}>{w}</div>
+                ))}
+              </div>
+            )}
+
+            {/* 送信ボタン */}
+            <button
+              onClick={handleActualSubmit}
+              disabled={sending}
+              style={{
+                width: "100%",
+                padding: "16px 0",
+                background: sending ? t.textMuted : t.accentGrad,
+                color: "#fff",
+                border: "none",
+                borderRadius: 12,
+                fontSize: 17,
+                fontWeight: 800,
+                cursor: sending ? "not-allowed" : "pointer",
+                letterSpacing: 2,
+              }}
+            >
+              {sending ? "送信中..." : "送信する"}
+            </button>
+
+            <button
+              onClick={() => setTab("form")}
+              style={{
+                width: "100%",
+                padding: "12px 0",
+                background: "transparent",
+                color: t.textSub,
+                border: `1px solid ${t.inputBorder}`,
+                borderRadius: 12,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              戻って修正する
+            </button>
           </div>
         )}
 
@@ -1309,6 +1573,19 @@ function res(obj) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ⑪ 確認画面用の行コンポーネント
+function ConfirmRow({ label, value, t }) {
+  return (
+    <div style={{
+      display: "flex", justifyContent: "space-between", alignItems: "center",
+      padding: "8px 0", borderBottom: `1px solid ${t.cardBorder}`,
+    }}>
+      <span style={{ fontSize: 13, color: t.textSub }}>{label}</span>
+      <span style={{ fontSize: 15, fontWeight: 700 }}>{value}</span>
     </div>
   );
 }
