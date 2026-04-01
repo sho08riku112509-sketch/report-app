@@ -66,9 +66,11 @@ const THEMES = {
   },
 };
 
+const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbwebIC20GSCwIXrCn8AdwSsAXGzPywJiABPqeJY9eEqLZUNpQpKQesS-CJIGiI5ix15DA/exec";
+
 const defaultSettings = {
   name: "",
-  gasUrl: "",
+  gasUrl: DEFAULT_GAS_URL,
   centerName: "",
   sheetTab: "",
   staff: [],
@@ -177,6 +179,7 @@ export default function App() {
       if (parsed.staff) {
         parsed.staff = parsed.staff.map(s => ({ percent: "", ...s }));
       }
+      if (!parsed.gasUrl) parsed.gasUrl = DEFAULT_GAS_URL;
       setSettings(parsed);
       if (parsed.centerName) setForm(f => ({ ...f, origin: parsed.centerName }));
     } catch {}
