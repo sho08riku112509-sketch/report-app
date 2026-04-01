@@ -1106,6 +1106,21 @@ function res(obj) {
               </div>
             )}
 
+            {/* 日当 */}
+            {!form.traineeMode && (myDailyPay > 0 || traineeDailyPay > 0) && (
+              <div style={{ background: t.card, borderRadius: 12, padding: "16px", border: `1px solid ${t.cardBorder}` }}>
+                <div style={{ fontSize: 11, color: t.accent, fontWeight: 700, letterSpacing: 2, marginBottom: 12 }}>
+                  日当計算
+                </div>
+                {myDailyPay > 0 && (
+                  <ConfirmRow label="自分の日当" value={`¥${myDailyPay.toLocaleString()}`} t={t} />
+                )}
+                {traineeDailyPay > 0 && (
+                  <ConfirmRow label="助手の日当" value={`¥${traineeDailyPay.toLocaleString()}`} t={t} />
+                )}
+              </div>
+            )}
+
             {/* マン数 */}
             <div style={{ background: t.card, borderRadius: 12, padding: "16px", border: `1px solid ${t.cardBorder}` }}>
               <ConfirmRow
@@ -1238,7 +1253,7 @@ function res(obj) {
                 )}
                 {traineeDailyPay > 0 && (
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 14, color: t.textSub }}>研修生の日当</span>
+                    <span style={{ fontSize: 14, color: t.textSub }}>助手の日当</span>
                     <span style={{ fontSize: 20, fontWeight: 900 }}>¥{traineeDailyPay.toLocaleString()}</span>
                   </div>
                 )}
