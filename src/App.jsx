@@ -107,7 +107,7 @@ const defaultForm = {
   count: "",
   originAmount: "",
   additions: Object.fromEntries(
-    addItems.map((i) => [i.key, { count: "", amount: "", enabled: false, ...(i.hasDetail ? { detail: "" } : {}) }])
+    addItems.map((i) => [i.key, { count: "", amount: "", enabled: false, detail: "" }])
   ),
   kokinCount: "",
   kokinAmount: "",
@@ -244,13 +244,15 @@ export default function App() {
     addItems.forEach((item) => {
       const a = form.additions[item.key];
       if (a.enabled && formatNum(a.amount) > 0) {
+        let line = item.label;
         if (item.hasCount && a.count) {
-          addLines.push(`${item.label}${a.count}台 ${formatNum(a.amount).toLocaleString()}円`);
-        } else if (item.hasDetail && a.detail) {
-          addLines.push(`${item.label}(${a.detail}) ${formatNum(a.amount).toLocaleString()}円`);
-        } else {
-          addLines.push(`${item.label} ${formatNum(a.amount).toLocaleString()}円`);
+          line += `${a.count}台`;
         }
+        if (a.detail) {
+          line += `(${a.detail})`;
+        }
+        line += ` ${formatNum(a.amount).toLocaleString()}円`;
+        addLines.push(line);
       }
     });
 
@@ -858,13 +860,16 @@ function res(obj) {
                               <Input value={a.count} onChange={(v) => updateAddition(item.key, "count", v)} type="number" suffix="台" t={t} />
                             </Row>
                           )}
-                          {item.hasDetail && (
-                            <Row label="詳細" t={t}>
-                              <Input value={a.detail || ""} onChange={(v) => updateAddition(item.key, "detail", v)} placeholder="例：抗菌2台" t={t} />
-                            </Row>
-                          )}
                           <Row label="金額" t={t}>
                             <MoneyInput value={a.amount} onChange={(v) => updateAddition(item.key, "amount", v)} t={t} />
+                          </Row>
+                          <Row label="メモ" t={t}>
+                            <Input
+                              value={a.detail || ""}
+                              onChange={(v) => updateAddition(item.key, "detail", v)}
+                              placeholder={item.key === "sonota" ? "例：抗菌2台" : "例：他者分（空欄でOK）"}
+                              t={t}
+                            />
                           </Row>
                         </div>
                       )}
