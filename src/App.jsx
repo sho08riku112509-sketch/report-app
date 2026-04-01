@@ -1669,13 +1669,24 @@ function Row({ label, children, t }) {
 }
 
 function Input({ value, onChange, placeholder, type = "text", suffix, t }) {
+  // Android対策: type="number"は使わず、常にtype="text" + inputMode="numeric"
+  const isNum = type === "number";
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
       <input
-        type={type}
-        inputMode={type === "number" ? "numeric" : undefined}
+        type="text"
+        inputMode={isNum ? "numeric" : undefined}
+        pattern={isNum ? "[0-9]*" : undefined}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          if (isNum) {
+            // 数字のみ許可（全角→半角変換）
+            const v = e.target.value.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).replace(/[^0-9]/g, "");
+            onChange(v);
+          } else {
+            onChange(e.target.value);
+          }
+        }}
         placeholder={placeholder}
         style={{
           flex: 1, background: t.input, border: `1px solid ${t.inputBorder}`,
@@ -1731,14 +1742,20 @@ function AbsenceCopyBtn({ name, date, onAbsence, t }) {
 
 function MoneyInput({ value, onChange, placeholder, t }) {
   const [editing, setEditing] = useState(false);
-  const display = editing ? String(value).replace(/,/g, "") : numDisplay(value);
+  // Android対策: type="text"固定 + inputMode="numeric"でテンキー表示
+  const rawValue = String(value).replace(/,/g, "").replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).replace(/[^0-9]/g, "");
+  const display = editing ? rawValue : numDisplay(value);
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
       <input
-        type={editing ? "number" : "text"}
+        type="text"
         inputMode="numeric"
+        pattern="[0-9]*"
         value={display}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          const v = e.target.value.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).replace(/[^0-9,]/g, "").replace(/,/g, "");
+          onChange(v);
+        }}
         onFocus={() => setEditing(true)}
         onBlur={() => setEditing(false)}
         placeholder={placeholder}
