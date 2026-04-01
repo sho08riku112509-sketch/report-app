@@ -248,8 +248,8 @@ export default function App() {
         if (item.hasCount && a.count) {
           line += `${a.count}台`;
         }
-        if (a.detail) {
-          line += `(${a.detail})`;
+        if (a.detail && a.detail.trim()) {
+          line += `(${a.detail.trim()})`;
         }
         line += ` ${formatNum(a.amount).toLocaleString()}円`;
         addLines.push(line);
@@ -867,17 +867,30 @@ function res(obj) {
                           ) : (
                             <MoneyInput value={a.amount} onChange={(v) => updateAddition(item.key, "amount", v)} t={t} />
                           )}
-                          <input
-                            type="text"
-                            value={a.detail || ""}
-                            onChange={(e) => updateAddition(item.key, "detail", e.target.value)}
-                            placeholder={item.key === "sonota" ? "例：抗菌2台" : "メモ（空欄OK）"}
-                            style={{
-                              background: t.input, border: `1px solid ${t.inputBorder}`,
-                              borderRadius: 6, color: t.text, padding: "5px 10px",
-                              fontSize: 12, outline: "none", width: "100%", boxSizing: "border-box",
-                            }}
-                          />
+                          {a.detail ? (
+                            <input
+                              type="text"
+                              value={a.detail}
+                              onChange={(e) => updateAddition(item.key, "detail", e.target.value)}
+                              placeholder={item.key === "sonota" ? "例：抗菌2台" : "例：他者分"}
+                              style={{
+                                background: t.input, border: `1px solid ${t.inputBorder}`,
+                                borderRadius: 6, color: t.text, padding: "5px 10px",
+                                fontSize: 12, outline: "none", width: "100%", boxSizing: "border-box",
+                              }}
+                            />
+                          ) : (
+                            <button
+                              onClick={() => updateAddition(item.key, "detail", " ")}
+                              style={{
+                                background: "transparent", border: "none",
+                                color: t.textMuted, fontSize: 11, cursor: "pointer",
+                                padding: "2px 0",
+                              }}
+                            >
+                              ＋ メモを追加
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
