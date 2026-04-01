@@ -855,22 +855,29 @@ function res(obj) {
                       </div>
                       {a.enabled && (
                         <div style={{ paddingLeft: 46, display: "flex", flexDirection: "column", gap: 6 }}>
-                          {item.hasCount && (
-                            <Row label="台数" t={t}>
-                              <Input value={a.count} onChange={(v) => updateAddition(item.key, "count", v)} type="number" suffix="台" t={t} />
-                            </Row>
-                          )}
-                          <Row label="金額" t={t}>
+                          {item.hasCount ? (
+                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                              <div style={{ flex: "0 0 80px" }}>
+                                <Input value={a.count} onChange={(v) => updateAddition(item.key, "count", v)} type="number" suffix="台" t={t} />
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <MoneyInput value={a.amount} onChange={(v) => updateAddition(item.key, "amount", v)} t={t} />
+                              </div>
+                            </div>
+                          ) : (
                             <MoneyInput value={a.amount} onChange={(v) => updateAddition(item.key, "amount", v)} t={t} />
-                          </Row>
-                          <Row label="メモ" t={t}>
-                            <Input
-                              value={a.detail || ""}
-                              onChange={(v) => updateAddition(item.key, "detail", v)}
-                              placeholder={item.key === "sonota" ? "例：抗菌2台" : "例：他者分（空欄でOK）"}
-                              t={t}
-                            />
-                          </Row>
+                          )}
+                          <input
+                            type="text"
+                            value={a.detail || ""}
+                            onChange={(e) => updateAddition(item.key, "detail", e.target.value)}
+                            placeholder={item.key === "sonota" ? "例：抗菌2台" : "メモ（空欄OK）"}
+                            style={{
+                              background: t.input, border: `1px solid ${t.inputBorder}`,
+                              borderRadius: 6, color: t.text, padding: "5px 10px",
+                              fontSize: 12, outline: "none", width: "100%", boxSizing: "border-box",
+                            }}
+                          />
                         </div>
                       )}
                     </div>
