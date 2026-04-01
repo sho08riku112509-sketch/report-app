@@ -537,9 +537,13 @@ export default function App() {
 
   const enabledStaff = settings.staff.filter((s) => s.enabled);
 
-  const gasScript = `// Google Apps Script - 「R8年 チーム中山原本」のメンバーシートに直接記録
-// ★ 初回セットアップ：showHeaders() を実行して列位置を確認してください
-var SHEET_ID = '1KB3jrOsESJEjoprC9KgLHCSzUMYWqX7bbMSMS-BLvic';
+  const gasScript = `// Google Apps Script - チーム中山 日報転記スクリプト
+// ★ 月が変わったらSPREADSHEET_IDだけ書き換えてデプロイし直す
+// ★ スタッフ側のアプリURLは変わらないので何もしなくてOK
+// ★ スプレッドシートIDはURLの /d/〇〇〇/edit の〇〇〇の部分
+
+// ===== ここだけ毎月書き換える =====
+var SHEET_ID = 'ここにスプレッドシートIDを貼り付ける';
 
 // ===== 列マッピング設定 =====
 var COL = {
@@ -1560,15 +1564,18 @@ function res(obj) {
               background: t.infoBg, border: `1px solid ${t.infoBorder}`,
               borderRadius: 10, padding: "14px 16px", fontSize: 13, color: t.infoSub, lineHeight: 1.8,
             }}>
-              <div style={{ color: t.infoText, fontWeight: 700, marginBottom: 6 }}>セットアップ手順</div>
+              <div style={{ color: t.infoText, fontWeight: 700, marginBottom: 6 }}>セットアップ手順（初回）</div>
               <div>1. スクリプトを貼り付けて保存</div>
-              <div>2. <b>showHeaders</b> を実行（▶ボタン）</div>
-              <div>3. 「実行ログ」で列番号を確認</div>
-              <div>4. COLの数値を実際の列番号に修正</div>
-              <div>5. デプロイ → アクセス：全員</div>
-              <div>6. URLをアプリの設定に貼る</div>
-              <div style={{ marginTop: 6 }}>・更新時は「デプロイを管理」→「編集」</div>
-              <div>・初回は権限承認が必要</div>
+              <div>2. SHEET_IDにスプレッドシートIDを入力</div>
+              <div>3. <b>showHeaders</b> を実行（▶ボタン）</div>
+              <div>4. 「実行ログ」で列番号を確認</div>
+              <div>5. COLの数値を実際の列番号に修正</div>
+              <div>6. デプロイ → アクセス：全員</div>
+              <div>7. URLをアプリの設定に貼る</div>
+              <div style={{ marginTop: 6, color: t.infoText, fontWeight: 700 }}>月替わり作業（翔太さんだけ）</div>
+              <div>1. GASのSHEET_IDを新しいIDに書き換え</div>
+              <div>2. 「デプロイを管理」→ 編集 → 新バージョン → デプロイ</div>
+              <div>※ スタッフ側は何もしなくてOK</div>
             </div>
           </div>
         )}
