@@ -1106,35 +1106,6 @@ function res(obj) {
         {tab === "settings" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-            {/* テーマ選択 */}
-            <Section title="テーマ" t={t}>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {Object.values(THEMES).map((theme) => (
-                  <button
-                    key={theme.id}
-                    onClick={() => saveSettings({ ...settings, theme: theme.id })}
-                    style={{
-                      flex: "1 1 calc(50% - 4px)",
-                      minWidth: 140,
-                      padding: "12px 8px",
-                      background: theme.bg,
-                      border: `2px solid ${settings.theme === theme.id ? theme.accent : theme.cardBorder}`,
-                      borderRadius: 10,
-                      cursor: "pointer",
-                      textAlign: "center",
-                    }}
-                  >
-                    <div style={{ color: theme.accent, fontWeight: 700, fontSize: 12 }}>{theme.name}</div>
-                    <div style={{ display: "flex", gap: 4, justifyContent: "center", marginTop: 6 }}>
-                      <div style={{ width: 16, height: 16, borderRadius: 4, background: theme.accent }} />
-                      <div style={{ width: 16, height: 16, borderRadius: 4, background: theme.card, border: `1px solid ${theme.cardBorder}` }} />
-                      <div style={{ width: 16, height: 16, borderRadius: 4, background: theme.bg, border: `1px solid ${theme.cardBorder}` }} />
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </Section>
-
             <Section title="基本設定" t={t}>
               <Row label="自分の名前" t={t}>
                 <Input value={settings.name} onChange={(v) => saveSettings({ ...settings, name: v })} placeholder="例：濱口翔太" t={t} />
@@ -1265,6 +1236,35 @@ function res(obj) {
               <div>6. 種類：ウェブアプリ / アクセス：全員</div>
               <div>7. デプロイURLをここに貼る</div>
             </div>
+
+            {/* テーマ選択 */}
+            <Section title="テーマ" t={t}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {Object.values(THEMES).map((theme) => (
+                  <button
+                    key={theme.id}
+                    onClick={() => saveSettings({ ...settings, theme: theme.id })}
+                    style={{
+                      flex: "1 1 calc(50% - 4px)",
+                      minWidth: 140,
+                      padding: "12px 8px",
+                      background: theme.bg,
+                      border: `2px solid ${settings.theme === theme.id ? theme.accent : theme.cardBorder}`,
+                      borderRadius: 10,
+                      cursor: "pointer",
+                      textAlign: "center",
+                    }}
+                  >
+                    <div style={{ color: theme.accent, fontWeight: 700, fontSize: 12 }}>{theme.name}</div>
+                    <div style={{ display: "flex", gap: 4, justifyContent: "center", marginTop: 6 }}>
+                      <div style={{ width: 16, height: 16, borderRadius: 4, background: theme.accent }} />
+                      <div style={{ width: 16, height: 16, borderRadius: 4, background: theme.card, border: `1px solid ${theme.cardBorder}` }} />
+                      <div style={{ width: 16, height: 16, borderRadius: 4, background: theme.bg, border: `1px solid ${theme.cardBorder}` }} />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </Section>
           </div>
         )}
 
