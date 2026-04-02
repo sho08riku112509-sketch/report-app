@@ -225,12 +225,9 @@ export default function App() {
   // ③ 日延べテキスト生成（共通）
   const generateHinobeLines = useCallback(() => {
     return (form.hinobe || []).map(h => {
-      const parts = [];
-      if (parseInt(h.n) > 0) parts.push(`n${h.n}`);
-      if (parseInt(h.r) > 0) parts.push(`r${h.r}`);
-      if (parseInt(h.rf) > 0) parts.push(`RF${h.rf}`);
-      if (parts.length === 0) return null;
-      return `日延べ　${h.date} ${parts.join(" ")}`;
+      if (!h.date && !h.text) return null;
+      const textPart = h.text ? ` ${h.text}` : "";
+      return `日延べ　${h.date}${textPart}`;
     }).filter(Boolean);
   }, [form.hinobe]);
 
@@ -1138,40 +1135,29 @@ function res(obj) {
                         return { ...f, hinobe: arr };
                       });
                     }}
-                    placeholder="4/13"
+                    placeholder="4月13日"
                     style={{
-                      width: 56, background: t.input, border: `1px solid ${t.inputBorder}`,
+                      width: 72, background: t.input, border: `1px solid ${t.inputBorder}`,
+                      borderRadius: 6, color: t.text, padding: "6px 8px", fontSize: 13, outline: "none",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <input
+                    type="text"
+                    value={h.text || ""}
+                    onChange={(e) => {
+                      setForm(f => {
+                        const arr = [...f.hinobe];
+                        arr[i] = { ...arr[i], text: e.target.value };
+                        return { ...f, hinobe: arr };
+                      });
+                    }}
+                    placeholder="例：n2 r1 RF1"
+                    style={{
+                      flex: 1, background: t.input, border: `1px solid ${t.inputBorder}`,
                       borderRadius: 6, color: t.text, padding: "6px 8px", fontSize: 13, outline: "none",
                     }}
                   />
-                  {[
-                    { key: "n", label: "n" },
-                    { key: "r", label: "r" },
-                    { key: "rf", label: "RF" },
-                  ].map(col => (
-                    <div key={col.key} style={{ display: "flex", alignItems: "center", gap: 2 }}>
-                      <span style={{ fontSize: 12, color: t.textSub }}>{col.label}</span>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        value={h[col.key]}
-                        onChange={(e) => {
-                          const v = e.target.value.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).replace(/[^0-9]/g, "");
-                          setForm(f => {
-                            const arr = [...f.hinobe];
-                            arr[i] = { ...arr[i], [col.key]: v };
-                            return { ...f, hinobe: arr };
-                          });
-                        }}
-                        style={{
-                          width: 32, background: t.input, border: `1px solid ${t.inputBorder}`,
-                          borderRadius: 6, color: t.text, padding: "6px 4px",
-                          fontSize: 13, textAlign: "center", outline: "none",
-                        }}
-                      />
-                    </div>
-                  ))}
                   <button
                     onClick={() => setForm(f => ({ ...f, hinobe: f.hinobe.filter((_, j) => j !== i) }))}
                     style={{
@@ -1184,7 +1170,7 @@ function res(obj) {
                 </div>
               ))}
               <button
-                onClick={() => setForm(f => ({ ...f, hinobe: [...(f.hinobe || []), { date: "", n: "", r: "", rf: "" }] }))}
+                onClick={() => setForm(f => ({ ...f, hinobe: [...(f.hinobe || []), { date: "", text: "" }] }))}
                 style={{
                   background: "transparent", border: `1px dashed ${t.inputBorder}`,
                   borderRadius: 8, color: t.accent, fontSize: 13, fontWeight: 600,
@@ -1349,7 +1335,7 @@ function res(obj) {
             </div>
 
             {/* ③ 日延べ確認 */}
-            {(form.hinobe || []).some(h => parseInt(h.n) > 0 || parseInt(h.r) > 0 || parseInt(h.rf) > 0) && (
+            {generateHinobeLines().length > 0 && (
               <div style={{ background: t.card, borderRadius: 12, padding: "16px", border: `1px solid ${t.cardBorder}` }}>
                 <div style={{ fontSize: 11, color: t.accent, fontWeight: 700, letterSpacing: 2, marginBottom: 12 }}>
                   日延べ
