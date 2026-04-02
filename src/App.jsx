@@ -106,6 +106,8 @@ const defaultForm = {
   origin: "",
   count: "",
   originAmount: "",
+  // ② 元請台数（任意入力）
+  originCounts: { naiki: "", gaiki: "", robo: "", rf: "", sonota: "" },
   additions: Object.fromEntries(
     addItems.map((i) => [i.key, { count: "", amount: "", enabled: false, detail: null }])
   ),
@@ -116,6 +118,8 @@ const defaultForm = {
   partnerIsTrainee: [],
   traineeMode: false,
   traineeName: "",
+  // ③ 日延べ
+  hinobe: [],
 };
 
 async function copyToClipboard(text) {
@@ -218,6 +222,18 @@ export default function App() {
     return Math.round(total * parseFloat(settings.myPercent) / 100 * 0.25);
   })();
 
+  // ③ 日延べテキスト生成（共通）
+  const generateHinobeLines = useCallback(() => {
+    return (form.hinobe || []).map(h => {
+      const parts = [];
+      if (parseInt(h.n) > 0) parts.push(`n${h.n}`);
+      if (parseInt(h.r) > 0) parts.push(`r${h.r}`);
+      if (parseInt(h.rf) > 0) parts.push(`RF${h.rf}`);
+      if (parts.length === 0) return null;
+      return `日延べ　${h.date} ${parts.join(" ")}`;
+    }).filter(Boolean);
+  }, [form.hinobe]);
+
   const generateText = useCallback(() => {
     const lines = [];
     lines.push(settings.name);
@@ -234,6 +250,11 @@ export default function App() {
         }
       } else {
         lines.push("1マンです");
+      }
+      // ④ 研修モードでも日延べ
+      const hinobeLines = generateHinobeLines();
+      if (hinobeLines.length > 0) {
+        hinobeLines.forEach(l => lines.push(l));
       }
       lines.push("お疲れ様でした");
       return lines.join("\n");
@@ -269,6 +290,12 @@ export default function App() {
     lines.push("");
     lines.push(`合計${total.toLocaleString()}円`);
 
+    // ③ 日延べ
+    const hinobeLines = generateHinobeLines();
+    if (hinobeLines.length > 0) {
+      hinobeLines.forEach(l => lines.push(l));
+    }
+
     if (form.manCount >= 2) {
       const namesParts = form.partnerNames.map((n, i) => {
         if (!n.trim()) return "";
@@ -285,7 +312,7 @@ export default function App() {
     lines.push("お疲れ様でした");
 
     return lines.join("\n");
-  }, [form, settings, total]);
+  }, [form, settings, total, generateHinobeLines]);
 
   const validate = () => {
     const errs = [];
@@ -423,6 +450,12 @@ export default function App() {
       origin: form.origin,
       count: formatNum(form.count),
       originAmount: formatNum(form.originAmount),
+      // ② 元請台数
+      originNaikiCount: formatNum(form.originCounts?.naiki),
+      originGaikiCount: formatNum(form.originCounts?.gaiki),
+      originRoboCount: formatNum(form.originCounts?.robo),
+      originRfCount: formatNum(form.originCounts?.rf),
+      originSonotaCount: formatNum(form.originCounts?.sonota),
       naikiCount: form.additions.naiki.enabled ? formatNum(form.additions.naiki.count) : 0,
       naikiAmount: form.additions.naiki.enabled ? formatNum(form.additions.naiki.amount) : 0,
       gaikiCount: form.additions.gaiki.enabled ? formatNum(form.additions.gaiki.count) : 0,
@@ -842,6 +875,38 @@ function res(obj) {
                     t={t}
                   />
                 </Row>
+                {/* ② 元請台数（任意） */}
+                <div style={{ marginTop: 8, borderTop: `1px solid ${t.cardBorder}`, paddingTop: 10 }}>
+                  <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 8 }}>台数内訳（任意）</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {[
+                      { key: "naiki", label: "内機" },
+                      { key: "gaiki", label: "外機" },
+                      { key: "robo", label: "ロボ" },
+                      { key: "rf", label: "RF" },
+                      { key: "sonota", label: "他" },
+                    ].map(item => (
+                      <div key={item.key} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <span style={{ fontSize: 12, color: t.textSub, minWidth: 28 }}>{item.label}</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={form.originCounts?.[item.key] || ""}
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).replace(/[^0-9]/g, "");
+                            setForm(f => ({ ...f, originCounts: { ...f.originCounts, [item.key]: v } }));
+                          }}
+                          style={{
+                            width: 36, background: t.input, border: `1px solid ${t.inputBorder}`,
+                            borderRadius: 6, color: t.text, padding: "4px 6px",
+                            fontSize: 13, textAlign: "center", outline: "none",
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </Section>
             )}
 
@@ -1059,6 +1124,77 @@ function res(obj) {
               ))}
             </Section>
 
+            {/* ③ 日延べ */}
+            <Section title="日延べ" t={t}>
+              {(form.hinobe || []).map((h, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                  <input
+                    type="text"
+                    value={h.date}
+                    onChange={(e) => {
+                      setForm(f => {
+                        const arr = [...f.hinobe];
+                        arr[i] = { ...arr[i], date: e.target.value };
+                        return { ...f, hinobe: arr };
+                      });
+                    }}
+                    placeholder="4/13"
+                    style={{
+                      width: 56, background: t.input, border: `1px solid ${t.inputBorder}`,
+                      borderRadius: 6, color: t.text, padding: "6px 8px", fontSize: 13, outline: "none",
+                    }}
+                  />
+                  {[
+                    { key: "n", label: "n" },
+                    { key: "r", label: "r" },
+                    { key: "rf", label: "RF" },
+                  ].map(col => (
+                    <div key={col.key} style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                      <span style={{ fontSize: 12, color: t.textSub }}>{col.label}</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={h[col.key]}
+                        onChange={(e) => {
+                          const v = e.target.value.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).replace(/[^0-9]/g, "");
+                          setForm(f => {
+                            const arr = [...f.hinobe];
+                            arr[i] = { ...arr[i], [col.key]: v };
+                            return { ...f, hinobe: arr };
+                          });
+                        }}
+                        style={{
+                          width: 32, background: t.input, border: `1px solid ${t.inputBorder}`,
+                          borderRadius: 6, color: t.text, padding: "6px 4px",
+                          fontSize: 13, textAlign: "center", outline: "none",
+                        }}
+                      />
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => setForm(f => ({ ...f, hinobe: f.hinobe.filter((_, j) => j !== i) }))}
+                    style={{
+                      background: "transparent", border: "none", color: t.textMuted,
+                      fontSize: 16, cursor: "pointer", padding: "2px 6px", flexShrink: 0,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={() => setForm(f => ({ ...f, hinobe: [...(f.hinobe || []), { date: "", n: "", r: "", rf: "" }] }))}
+                style={{
+                  background: "transparent", border: `1px dashed ${t.inputBorder}`,
+                  borderRadius: 8, color: t.accent, fontSize: 13, fontWeight: 600,
+                  padding: "8px 0", width: "100%", cursor: "pointer",
+                }}
+              >
+                ＋ 日延べを追加
+              </button>
+            </Section>
+
             {/* ⑪ 送信ボタン → 確認画面へ */}
             <button
               onClick={handlePreSubmit}
@@ -1123,6 +1259,20 @@ function res(obj) {
                   <ConfirmRow label="センター" value={form.origin} t={t} />
                   <ConfirmRow label="件数" value={`${form.count}件`} t={t} />
                   <ConfirmRow label="基本金額" value={`¥${formatNum(form.originAmount).toLocaleString()}`} t={t} />
+                  {/* ② 元請台数 */}
+                  {(() => {
+                    const oc = form.originCounts || {};
+                    const parts = [
+                      oc.naiki && `内機${oc.naiki}`,
+                      oc.gaiki && `外機${oc.gaiki}`,
+                      oc.robo && `ロボ${oc.robo}`,
+                      oc.rf && `RF${oc.rf}`,
+                      oc.sonota && `他${oc.sonota}`,
+                    ].filter(Boolean);
+                    return parts.length > 0 ? (
+                      <ConfirmRow label="台数内訳" value={parts.join(" / ")} t={t} />
+                    ) : null;
+                  })()}
                 </>
               )}
             </div>
@@ -1197,6 +1347,18 @@ function res(obj) {
                 t={t}
               />
             </div>
+
+            {/* ③ 日延べ確認 */}
+            {(form.hinobe || []).some(h => parseInt(h.n) > 0 || parseInt(h.r) > 0 || parseInt(h.rf) > 0) && (
+              <div style={{ background: t.card, borderRadius: 12, padding: "16px", border: `1px solid ${t.cardBorder}` }}>
+                <div style={{ fontSize: 11, color: t.accent, fontWeight: 700, letterSpacing: 2, marginBottom: 12 }}>
+                  日延べ
+                </div>
+                {generateHinobeLines().map((line, i) => (
+                  <div key={i} style={{ fontSize: 14, color: t.text, marginBottom: 4 }}>{line}</div>
+                ))}
+              </div>
+            )}
 
             {/* ⑫ 単価チェック警告（1マン時のみ） */}
             {priceWarnings.length > 0 && (
