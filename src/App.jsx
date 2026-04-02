@@ -897,8 +897,8 @@ function res(obj) {
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                     {[
                       { key: "naiki", label: "内機" },
-                      { key: "gaiki", label: "外機" },
                       { key: "robo", label: "ロボ" },
+                      { key: "gaiki", label: "外機" },
                       { key: "rf", label: "RF" },
                       { key: "sonota", label: "他" },
                     ].map(item => (
@@ -1265,8 +1265,8 @@ function res(obj) {
                     const oc = form.originCounts || {};
                     const parts = [
                       oc.naiki && `内機${oc.naiki}`,
-                      oc.gaiki && `外機${oc.gaiki}`,
                       oc.robo && `ロボ${oc.robo}`,
+                      oc.gaiki && `外機${oc.gaiki}`,
                       oc.rf && `RF${oc.rf}`,
                       oc.sonota && `他${oc.sonota}`,
                     ].filter(Boolean);
