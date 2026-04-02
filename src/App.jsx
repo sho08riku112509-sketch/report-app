@@ -225,9 +225,8 @@ export default function App() {
   // ③ 日延べテキスト生成（共通）
   const generateHinobeLines = useCallback(() => {
     return (form.hinobe || []).map(h => {
-      if (!h.date && !h.text) return null;
-      const textPart = h.text ? ` ${h.text}` : "";
-      return `日延べ　${h.date}${textPart}`;
+      if (!h.text) return null;
+      return `日延べ　${h.text}`;
     }).filter(Boolean);
   }, [form.hinobe]);
 
@@ -1127,23 +1126,6 @@ function res(obj) {
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
                   <input
                     type="text"
-                    value={h.date}
-                    onChange={(e) => {
-                      setForm(f => {
-                        const arr = [...f.hinobe];
-                        arr[i] = { ...arr[i], date: e.target.value };
-                        return { ...f, hinobe: arr };
-                      });
-                    }}
-                    placeholder="4月13日"
-                    style={{
-                      width: 72, background: t.input, border: `1px solid ${t.inputBorder}`,
-                      borderRadius: 6, color: t.text, padding: "6px 8px", fontSize: 13, outline: "none",
-                      flexShrink: 0,
-                    }}
-                  />
-                  <input
-                    type="text"
                     value={h.text || ""}
                     onChange={(e) => {
                       setForm(f => {
@@ -1152,10 +1134,9 @@ function res(obj) {
                         return { ...f, hinobe: arr };
                       });
                     }}
-                    placeholder="例：n2 r1 RF1"
                     style={{
                       flex: 1, background: t.input, border: `1px solid ${t.inputBorder}`,
-                      borderRadius: 6, color: t.text, padding: "6px 8px", fontSize: 13, outline: "none",
+                      borderRadius: 6, color: t.text, padding: "8px 10px", fontSize: 14, outline: "none",
                     }}
                   />
                   <button
@@ -1170,7 +1151,7 @@ function res(obj) {
                 </div>
               ))}
               <button
-                onClick={() => setForm(f => ({ ...f, hinobe: [...(f.hinobe || []), { date: "", text: "" }] }))}
+                onClick={() => setForm(f => ({ ...f, hinobe: [...(f.hinobe || []), { text: "" }] }))}
                 style={{
                   background: "transparent", border: `1px dashed ${t.inputBorder}`,
                   borderRadius: 8, color: t.accent, fontSize: 13, fontWeight: 600,
