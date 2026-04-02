@@ -600,6 +600,13 @@ var SHEET_ID = 'ここにスプレッドシートIDを貼り付ける';
 var COL = {
   count:       5,   // E列: 件数
   baseAmount:  6,   // F列: 基本売上
+  // ② 元請台数（エディオン）
+  originNaiki: 7,   // G列: 内機
+  originRobo:  8,   // H列: ロボ
+  originGaiki: 9,   // I列: 外機
+  originRf:    10,  // J列: RF
+  originSonota:11,  // K列: その他
+  // 追加売り上げ
   naikiCount:  12,  // L列: 内機 台数
   naikiAmount: 13,  // M列: 内機 金額
   gaikiCount:  14,  // N列: 外機 台数
@@ -681,11 +688,18 @@ function doPost(e) {
     if (COL.count > 0) sheet.getRange(row, COL.count).setValue(d.count);
     if (COL.baseAmount > 0) sheet.getRange(row, COL.baseAmount).setValue(d.originAmount);
 
+    // ② 元請台数（エディオン）
     var writeIfNonZero = function(col, val) {
       if (col > 0 && val !== undefined && val !== 0 && val !== '') {
         sheet.getRange(row, col).setValue(val);
       }
     };
+
+    writeIfNonZero(COL.originNaiki, d.originNaikiCount);
+    writeIfNonZero(COL.originRobo, d.originRoboCount);
+    writeIfNonZero(COL.originGaiki, d.originGaikiCount);
+    writeIfNonZero(COL.originRf, d.originRfCount);
+    writeIfNonZero(COL.originSonota, d.originSonotaCount);
 
     writeIfNonZero(COL.naikiCount, d.naikiCount);
     writeIfNonZero(COL.naikiAmount, d.naikiAmount);
