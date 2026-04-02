@@ -473,6 +473,8 @@ export default function App() {
       partnerNames: form.partnerNames.filter(n => n.trim()),
       myDailyPay,
       traineeDailyPay,
+      // 研修者名（研修チェックが入ってる相手の名前）
+      traineeName: (form.partnerNames || []).filter((n, i) => n.trim() && (form.partnerIsTrainee || [])[i]).join("・"),
       reportText: generateText(),
     };
 
@@ -616,7 +618,8 @@ var COL = {
   // ※ AA列(27) = 追加合計（数式）→ 書き込み禁止！
   memo:        0,   // MEMO書き込みなし
   myDailyPay:  0,   // 自分日当（列番号を設定すれば書き込み）
-  traineeDailyPay: 0, // 研修生日当（列番号を設定すれば書き込み）
+  traineeDailyPay: 37, // AK列: 助手手当
+  traineeName: 38,  // AL列: 研修者
 };
 
 function showHeaders() {
@@ -700,6 +703,9 @@ function doPost(e) {
     writeIfNonZero(COL.inceAmount, d.inceAmount);
     writeIfNonZero(COL.myDailyPay, d.myDailyPay);
     writeIfNonZero(COL.traineeDailyPay, d.traineeDailyPay);
+    if (COL.traineeName > 0 && d.traineeName) {
+      sheet.getRange(row, COL.traineeName).setValue(d.traineeName);
+    }
 
     sheet.setRowHeight(row, originalHeight);
     return res({ status: 'ok', message: tabName + ' の ' + day + '日に記録しました' });
