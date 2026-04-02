@@ -295,7 +295,7 @@ export default function App() {
     if (form.manCount >= 2) {
       const namesParts = form.partnerNames.map((n, i) => {
         if (!n.trim()) return "";
-        return (form.partnerIsTrainee || [])[i] ? `${n}（研修）` : n;
+        return n;
       }).filter(Boolean);
       if (namesParts.length > 0) {
         lines.push(`${namesParts.join("・")}と${form.manCount}マンです`);
