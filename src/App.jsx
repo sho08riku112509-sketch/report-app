@@ -1121,46 +1121,60 @@ function res(obj) {
             </Section>
 
             {/* ③ 日延べ */}
-            <Section title="日延べ" t={t}>
-              {(form.hinobe || []).map((h, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                  <input
-                    type="text"
-                    value={h.text || ""}
-                    onChange={(e) => {
-                      setForm(f => {
-                        const arr = [...f.hinobe];
-                        arr[i] = { ...arr[i], text: e.target.value };
-                        return { ...f, hinobe: arr };
-                      });
-                    }}
-                    style={{
-                      flex: 1, background: t.input, border: `1px solid ${t.inputBorder}`,
-                      borderRadius: 6, color: t.text, padding: "8px 10px", fontSize: 14, outline: "none",
-                    }}
-                  />
-                  <button
-                    onClick={() => setForm(f => ({ ...f, hinobe: f.hinobe.filter((_, j) => j !== i) }))}
-                    style={{
-                      background: "transparent", border: "none", color: t.textMuted,
-                      fontSize: 16, cursor: "pointer", padding: "2px 6px", flexShrink: 0,
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
+            {(form.hinobe || []).length > 0 ? (
+              <Section title="日延べ" t={t}>
+                {form.hinobe.map((h, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                    <input
+                      type="text"
+                      value={h.text || ""}
+                      onChange={(e) => {
+                        setForm(f => {
+                          const arr = [...f.hinobe];
+                          arr[i] = { ...arr[i], text: e.target.value };
+                          return { ...f, hinobe: arr };
+                        });
+                      }}
+                      style={{
+                        flex: 1, background: t.input, border: `1px solid ${t.inputBorder}`,
+                        borderRadius: 6, color: t.text, padding: "8px 10px", fontSize: 14, outline: "none",
+                      }}
+                    />
+                    <button
+                      onClick={() => setForm(f => ({ ...f, hinobe: f.hinobe.filter((_, j) => j !== i) }))}
+                      style={{
+                        background: "transparent", border: "none", color: t.textMuted,
+                        fontSize: 16, cursor: "pointer", padding: "2px 6px", flexShrink: 0,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => setForm(f => ({ ...f, hinobe: [...f.hinobe, { text: "" }] }))}
+                  style={{
+                    background: "transparent", border: `1px dashed ${t.inputBorder}`,
+                    borderRadius: 8, color: t.accent, fontSize: 13, fontWeight: 600,
+                    padding: "8px 0", width: "100%", cursor: "pointer",
+                  }}
+                >
+                  ＋ 日延べを追加
+                </button>
+              </Section>
+            ) : (
               <button
-                onClick={() => setForm(f => ({ ...f, hinobe: [...(f.hinobe || []), { text: "" }] }))}
+                onClick={() => setForm(f => ({ ...f, hinobe: [{ text: "" }] }))}
                 style={{
+                  width: "100%", padding: "12px 0",
                   background: "transparent", border: `1px dashed ${t.inputBorder}`,
-                  borderRadius: 8, color: t.accent, fontSize: 13, fontWeight: 600,
-                  padding: "8px 0", width: "100%", cursor: "pointer",
+                  borderRadius: 12, color: t.textSub, fontSize: 13, fontWeight: 600,
+                  cursor: "pointer",
                 }}
               >
                 ＋ 日延べを追加
               </button>
-            </Section>
+            )}
 
             {/* ⑪ 送信ボタン → 確認画面へ */}
             <button
