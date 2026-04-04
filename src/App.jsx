@@ -813,7 +813,10 @@ function res(obj) {
               </div>
               <Toggle
                 active={form.traineeMode}
-                onClick={() => setForm((f) => ({ ...f, traineeMode: !f.traineeMode, traineeName: "" }))}
+                onClick={() => setForm((f) => {
+                  const next = !f.traineeMode;
+                  return { ...f, traineeMode: next, traineeName: "", ...(next ? { manCount: 2 } : {}) };
+                })}}
                 t={t}
               />
             </div>
