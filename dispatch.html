@@ -82,9 +82,12 @@ textarea{width:100%;padding:10px 12px;background:var(--input-bg);border:1px soli
  <div class="header-top">
   <h1>配車表</h1><div class="spacer"></div>
   <span id="syncBadge" class="sync-badge syncing">接続中...</span>
-  <button class="btn btn-ghost btn-sm" onclick="showMasterModal()">内容登録</button>
   <button class="btn btn-primary btn-sm" onclick="copyResult()">結果コピー</button>
   <button class="btn btn-danger btn-sm" onclick="clearAll()">全クリア</button>
+ </div>
+ <div style="display:flex;gap:6px;margin-top:8px">
+  <button class="btn btn-primary" style="flex:1;padding:12px;font-size:15px" onclick="showMasterModal()">内容登録</button>
+  <button class="btn btn-ghost" style="padding:12px;font-size:13px" id="myNameBtn" onclick="showMyNameModal()">自分の名前</button>
  </div>
  <div class="header-row2">
   <label style="font-size:12px;color:var(--text-sub)">日付:</label>
@@ -112,6 +115,15 @@ textarea{width:100%;padding:10px 12px;background:var(--input-bg);border:1px soli
   </div>
   <div id="masterList"></div>
   <button class="btn btn-ghost btn-block" style="margin-top:12px" onclick="closeMasterModal()">閉じる</button>
+ </div>
+</div>
+<div id="myNameModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeMyNameModal()">
+ <div class="modal">
+  <h2>自分の名前を登録</h2>
+  <p style="font-size:13px;color:var(--text-sub);margin-bottom:12px">名前を登録すると、自分に配車されたとき通知が届きます</p>
+  <select id="myNameSelect" class="input" style="font-size:15px;margin-bottom:12px"></select>
+  <button class="btn btn-primary btn-block" style="padding:14px;font-size:16px" onclick="saveMyName()">登録する</button>
+  <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="closeMyNameModal()">閉じる</button>
  </div>
 </div>
 <script>
@@ -196,6 +208,7 @@ function subscribeRoom(roomId){
       drivers=JSON.parse(JSON.stringify(DEFAULT_DRIVERS));
       save();
     }
+    checkRouteChanges(routes);
     selectedRoutes.clear();
     render();
     setSyncStatus("connected");
@@ -548,11 +561,80 @@ function render(){
   renderForm();
 }
 
+// ===== My Name & Notifications =====
+var MY_NAME_KEY="dispatch_myname";
+var prevRoutes=null;
+
+function getMyName(){return localStorage.getItem(MY_NAME_KEY)||""}
+function updateMyNameBtn(){
+  var btn=document.getElementById("myNameBtn");
+  var name=getMyName();
+  btn.textContent=name?name+"（変更）":"自分の名前";
+}
+function showMyNameModal(){
+  document.getElementById("myNameModal").style.display="flex";
+  var sel=document.getElementById("myNameSelect");
+  var cur=getMyName();
+  sel.innerHTML='<option value="">-- 選択してください --</option>'+drivers.map(function(d){
+    return '<option value="'+esc(d.name)+'"'+(d.name===cur?' selected':'')+'>'+esc(d.name)+'</option>';
+  }).join("");
+}
+function closeMyNameModal(){document.getElementById("myNameModal").style.display="none"}
+function saveMyName(){
+  var sel=document.getElementById("myNameSelect");
+  var name=sel.value;
+  if(!name){showToast("名前を選択してください","error");return}
+  localStorage.setItem(MY_NAME_KEY,name);
+  updateMyNameBtn();
+  closeMyNameModal();
+  showToast(name+"で登録しました");
+  requestNotificationPermission();
+}
+
+function requestNotificationPermission(){
+  if(!("Notification" in window))return;
+  if(Notification.permission==="default"){
+    Notification.requestPermission();
+  }
+}
+
+function sendNotification(title,body){
+  if(!("Notification" in window)||Notification.permission!=="granted")return;
+  try{new Notification(title,{body:body,icon:"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚚</text></svg>"})}catch(e){console.log("Notification error:",e)}
+}
+
+function checkRouteChanges(newRoutes){
+  if(!prevRoutes){prevRoutes=newRoutes.slice();return}
+  var myName=getMyName();
+  if(!myName){prevRoutes=newRoutes.slice();return}
+  var myDriverId=null;
+  drivers.forEach(function(d){if(d.name===myName)myDriverId=d.id});
+  if(!myDriverId){prevRoutes=newRoutes.slice();return}
+  // Check new routes added
+  var oldIds={};prevRoutes.forEach(function(r){oldIds[r.id]=r});
+  var newAdded=newRoutes.filter(function(r){return!oldIds[r.id]});
+  if(newAdded.length>0){
+    sendNotification("新しい便が追加されました",newAdded.map(function(r){return r.tripNum+"便 "+r.destination+" "+r.cargo}).join(", "));
+  }
+  // Check routes assigned to me
+  var newAssigned=newRoutes.filter(function(r){
+    if(r.driverId!==myDriverId)return false;
+    var old=oldIds[r.id];
+    return!old||old.driverId!==myDriverId;
+  });
+  if(newAssigned.length>0){
+    sendNotification("配車されました！",newAssigned.map(function(r){return r.tripNum+"便 "+r.destination+" "+r.cargo}).join(", "));
+  }
+  prevRoutes=newRoutes.slice();
+}
+
 // ===== Init =====
 currentRoom=getRoomFromHash()||getTomorrowStr();
 document.getElementById("roomDate").value=currentRoom;
 location.hash="room="+currentRoom;
 initFirebase();
+updateMyNameBtn();
+if(getMyName())requestNotificationPermission();
 subscribeRoom(currentRoom);
 window.addEventListener("hashchange",function(){var r=getRoomFromHash();if(r&&r!==currentRoom)switchRoom(r)});
 </script>
