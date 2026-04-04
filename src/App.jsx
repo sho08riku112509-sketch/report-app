@@ -98,21 +98,24 @@ const PRICE_RULES = {
   ince: { type: "range", min: 500, max: 1000 },
 };
 
-const defaultForm = {
-  date: (() => {
-    const d = new Date();
-    return `${d.getMonth() + 1}月${d.getDate()}日`;
-  })(),
+const defaultCenter = () => ({
   origin: "",
   count: "",
   originAmount: "",
-  // ② 元請台数（任意入力）
   originCounts: { naiki: "", gaiki: "", robo: "", rf: "", sonota: "" },
   additions: Object.fromEntries(
     addItems.map((i) => [i.key, { count: "", amount: "", enabled: false, detail: null }])
   ),
   kokinCount: "",
   kokinAmount: "",
+});
+
+const defaultForm = {
+  date: (() => {
+    const d = new Date();
+    return `${d.getMonth() + 1}月${d.getDate()}日`;
+  })(),
+  centers: [defaultCenter()],
   manCount: 1,
   partnerNames: [],
   partnerIsTrainee: [],
@@ -189,7 +192,11 @@ export default function App() {
       }
       if (!parsed.gasUrl) parsed.gasUrl = DEFAULT_GAS_URL;
       setSettings(parsed);
-      if (parsed.centerName) setForm(f => ({ ...f, origin: parsed.centerName }));
+      if (parsed.centerName) setForm(f => {
+        const centers = [...(f.centers || [defaultCenter()])];
+        centers[0] = { ...centers[0], origin: parsed.centerName };
+        return { ...f, centers };
+      });
     } catch {}
     try {
       const h = localStorage.getItem(HISTORY_KEY);
@@ -202,13 +209,17 @@ export default function App() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch {}
   };
 
-  const calcTotal = useCallback(() => {
-    let total = formatNum(form.originAmount);
+  const calcCenterTotal = (center) => {
+    let t = formatNum(center.originAmount);
     addItems.forEach((item) => {
-      const a = form.additions[item.key];
-      if (a.enabled) total += formatNum(a.amount);
+      const a = center.additions[item.key];
+      if (a.enabled) t += formatNum(a.amount);
     });
-    return total;
+    return t;
+  };
+
+  const calcTotal = useCallback(() => {
+    return (form.centers || []).reduce((sum, c) => sum + calcCenterTotal(c), 0);
   }, [form]);
 
   const total = calcTotal();
@@ -269,35 +280,103 @@ export default function App() {
       return lines.join("\n");
     }
 
-    if (form.origin && form.count && form.originAmount) {
-      lines.push(`${form.origin}から${form.count}件${formatNum(form.originAmount).toLocaleString()}円`);
-    }
+    const centers = form.centers || [];
+    const multiCenter = centers.length > 1;
 
-    const addLines = [];
-    addItems.forEach((item) => {
-      const a = form.additions[item.key];
-      if (a.enabled && formatNum(a.amount) > 0) {
-        let line = item.label;
-        if (item.hasCount && a.count) {
-          line += `${a.count}台`;
-        }
-        if (a.detail && a.detail.trim()) {
-          line += `(${a.detail.trim()})`;
-        }
-        line += ` ${formatNum(a.amount).toLocaleString()}円`;
-        addLines.push(line);
+    const generateCenterLines = (center) => {
+      const cLines = [];
+      if (center.origin && center.count !== undefined && center.originAmount !== undefined) {
+        cLines.push(`${center.origin}から${center.count}件${formatNum(center.originAmount).toLocaleString()}円`);
       }
-    });
+      const cAddLines = [];
+      addItems.forEach((item) => {
+        const a = center.additions[item.key];
+        if (a.enabled && formatNum(a.amount) > 0) {
+          let line = item.label;
+          if (item.hasCount && a.count) line += `${a.count}台`;
+          if (a.detail && a.detail.trim()) line += `(${a.detail.trim()})`;
+          line += ` ${formatNum(a.amount).toLocaleString()}円`;
+          cAddLines.push(line);
+        }
+      });
+      if (cAddLines.length > 0) {
+        cLines.push("追加");
+        cAddLines.forEach((l) => cLines.push(l));
+      } else {
+        cLines.push("追加なし");
+      }
+      cLines.push(`合計${calcCenterTotal(center).toLocaleString()}円`);
+      return cLines;
+    };
 
-    if (addLines.length > 0) {
-      lines.push("追加");
-      addLines.forEach((l) => lines.push(l));
+    if (multiCenter) {
+      // 各センター
+      centers.forEach((center, i) => {
+        if (i > 0) lines.push("");
+        generateCenterLines(center).forEach(l => lines.push(l));
+      });
+      // まとめ
+      lines.push("");
+      lines.push("まとめ");
+      const totalCount = centers.reduce((s, c) => s + (parseInt(c.count) || 0), 0);
+      const totalOriginAmount = centers.reduce((s, c) => s + formatNum(c.originAmount), 0);
+      lines.push(`エディオンから${totalCount}件${totalOriginAmount.toLocaleString()}円`);
+      // 追加まとめ
+      const mergedAddLines = [];
+      addItems.forEach((item) => {
+        let totalAmt = 0;
+        let totalCnt = 0;
+        let hasAny = false;
+        let detail = "";
+        centers.forEach(c => {
+          const a = c.additions[item.key];
+          if (a.enabled && formatNum(a.amount) > 0) {
+            hasAny = true;
+            totalAmt += formatNum(a.amount);
+            totalCnt += parseInt(a.count) || 0;
+            if (a.detail && a.detail.trim() && !detail) detail = a.detail.trim();
+          }
+        });
+        if (hasAny) {
+          let line = item.label;
+          if (item.hasCount) line += `${totalCnt}台`;
+          if (detail) line += `(${detail})`;
+          line += ` ${totalAmt.toLocaleString()}円`;
+          mergedAddLines.push(line);
+        }
+      });
+      if (mergedAddLines.length > 0) {
+        lines.push("追加");
+        mergedAddLines.forEach(l => lines.push(l));
+      }
+      lines.push("");
+      lines.push(`合計${total.toLocaleString()}円`);
     } else {
-      lines.push("追加なし");
+      // 単一センター
+      const center = centers[0] || defaultCenter();
+      if (center.origin && center.count !== undefined && center.originAmount !== undefined) {
+        lines.push(`${center.origin}から${center.count}件${formatNum(center.originAmount).toLocaleString()}円`);
+      }
+      const addLines = [];
+      addItems.forEach((item) => {
+        const a = center.additions[item.key];
+        if (a.enabled && formatNum(a.amount) > 0) {
+          let line = item.label;
+          if (item.hasCount && a.count) line += `${a.count}台`;
+          if (a.detail && a.detail.trim()) line += `(${a.detail.trim()})`;
+          line += ` ${formatNum(a.amount).toLocaleString()}円`;
+          addLines.push(line);
+        }
+      });
+      if (addLines.length > 0) {
+        lines.push("追加");
+        addLines.forEach((l) => lines.push(l));
+      } else {
+        lines.push("追加なし");
+      }
+      lines.push("");
+      lines.push(`合計${total.toLocaleString()}円`);
     }
-
-    lines.push("");
-    lines.push(`合計${total.toLocaleString()}円`);
 
     // ③ 日延べ
     const hinobeLines = generateHinobeLines();
@@ -330,15 +409,18 @@ export default function App() {
       return errs;
     }
     if (!settings.sheetTab.trim()) errs.push("設定画面でシート名（例：【濱口】）を入力してください");
-    if (!form.origin.trim()) errs.push("センターを入力してください");
-    if (!form.count) errs.push("件数を入力してください");
-    if (!form.originAmount) errs.push("金額を入力してください");
-    addItems.forEach((item) => {
-      if (!item.hasCount) return;
-      const a = form.additions[item.key];
-      if (a.enabled && formatNum(a.amount) > 0 && a.count === "") {
-        errs.push(`${item.label}の台数を入力してください（0も可）`);
-      }
+    (form.centers || []).forEach((center, ci) => {
+      const label = (form.centers || []).length > 1 ? `センター${ci + 1}: ` : "";
+      if (!center.origin.trim()) errs.push(`${label}センターを入力してください`);
+      if (!center.count) errs.push(`${label}件数を入力してください`);
+      if (!center.originAmount) errs.push(`${label}金額を入力してください`);
+      addItems.forEach((item) => {
+        if (!item.hasCount) return;
+        const a = center.additions[item.key];
+        if (a.enabled && formatNum(a.amount) > 0 && a.count === "") {
+          errs.push(`${label}${item.label}の台数を入力してください（0も可）`);
+        }
+      });
     });
     return errs;
   };
@@ -347,35 +429,38 @@ export default function App() {
   const checkPrices = () => {
     if (form.manCount !== 1 || form.traineeMode) return [];
     const warnings = [];
-    addItems.forEach((item) => {
-      const rule = PRICE_RULES[item.key];
-      if (!rule) return;
-      const a = form.additions[item.key];
-      if (!a?.enabled) return;
-      const count = parseInt(a.count) || 0;
-      const amount = formatNum(a.amount);
-      if (count === 0 || amount === 0) return;
+    (form.centers || []).forEach((center, ci) => {
+      const label = (form.centers || []).length > 1 ? `センター${ci + 1}: ` : "";
+      addItems.forEach((item) => {
+        const rule = PRICE_RULES[item.key];
+        if (!rule) return;
+        const a = center.additions[item.key];
+        if (!a?.enabled) return;
+        const count = parseInt(a.count) || 0;
+        const amount = formatNum(a.amount);
+        if (count === 0 || amount === 0) return;
 
-      if (rule.type === "multi") {
-        const ok = rule.prices.some(p => {
-          const expected = count * p;
-          return expected > 0 && Math.abs(amount - expected) / expected <= rule.tolerance;
-        });
-        if (!ok) {
-          const opts = rule.prices.map(p => `${(count * p).toLocaleString()}円`).join(" or ");
-          warnings.push(`${item.label}${count}台の金額が標準（${opts}）と大きくズレています。確認してください。`);
+        if (rule.type === "multi") {
+          const ok = rule.prices.some(p => {
+            const expected = count * p;
+            return expected > 0 && Math.abs(amount - expected) / expected <= rule.tolerance;
+          });
+          if (!ok) {
+            const opts = rule.prices.map(p => `${(count * p).toLocaleString()}円`).join(" or ");
+            warnings.push(`${label}${item.label}${count}台の金額が標準（${opts}）と大きくズレています。確認してください。`);
+          }
+        } else if (rule.type === "fixed") {
+          const expected = count * rule.price;
+          if (expected > 0 && Math.abs(amount - expected) / expected > rule.tolerance) {
+            warnings.push(`${label}${item.label}${count}台の金額が標準（${expected.toLocaleString()}円）と大きくズレています。確認してください。`);
+          }
+        } else if (rule.type === "range") {
+          const perUnit = amount / count;
+          if (perUnit < rule.min || perUnit > rule.max) {
+            warnings.push(`${label}${item.label}の1台あたり金額（${Math.round(perUnit).toLocaleString()}円）が標準範囲（${rule.min.toLocaleString()}〜${rule.max.toLocaleString()}円）外です。確認してください。`);
+          }
         }
-      } else if (rule.type === "fixed") {
-        const expected = count * rule.price;
-        if (expected > 0 && Math.abs(amount - expected) / expected > rule.tolerance) {
-          warnings.push(`${item.label}${count}台の金額が標準（${expected.toLocaleString()}円）と大きくズレています。確認してください。`);
-        }
-      } else if (rule.type === "range") {
-        const perUnit = amount / count;
-        if (perUnit < rule.min || perUnit > rule.max) {
-          warnings.push(`${item.label}の1台あたり金額（${Math.round(perUnit).toLocaleString()}円）が標準範囲（${rule.min.toLocaleString()}〜${rule.max.toLocaleString()}円）外です。確認してください。`);
-        }
-      }
+      });
     });
     return warnings;
   };
@@ -385,8 +470,8 @@ export default function App() {
       id: Date.now().toString(),
       timestamp: new Date().toISOString(),
       date: form.date,
-      origin: form.traineeMode ? "研修" : form.origin,
-      count: form.count,
+      origin: form.traineeMode ? "研修" : (form.centers || []).map(c => c.origin).filter(Boolean).join("・"),
+      count: (form.centers || []).reduce((s, c) => s + (parseInt(c.count) || 0), 0),
       total,
       manCount: form.manCount,
       partnerNames: form.partnerNames,
@@ -412,6 +497,25 @@ export default function App() {
       snap.partnerNames = snap.partnerName ? [snap.partnerName] : [];
       delete snap.manType;
       delete snap.partnerName;
+    }
+    // 旧形式（centers無し）→ 新形式に変換
+    if (!snap.centers && snap.origin !== undefined) {
+      snap.centers = [{
+        origin: snap.origin || "",
+        count: snap.count || "",
+        originAmount: snap.originAmount || "",
+        originCounts: snap.originCounts || { naiki: "", gaiki: "", robo: "", rf: "", sonota: "" },
+        additions: snap.additions || Object.fromEntries(addItems.map((i) => [i.key, { count: "", amount: "", enabled: false, detail: null }])),
+        kokinCount: snap.kokinCount || "",
+        kokinAmount: snap.kokinAmount || "",
+      }];
+      delete snap.origin;
+      delete snap.count;
+      delete snap.originAmount;
+      delete snap.originCounts;
+      delete snap.additions;
+      delete snap.kokinCount;
+      delete snap.kokinAmount;
     }
     setForm(snap);
     setPartnerInputModes(Array(Math.max(0, (snap.manCount || 1) - 1)).fill("select"));
@@ -457,31 +561,31 @@ export default function App() {
       isAbsence,
       traineeMode: form.traineeMode,
       traineeName: form.traineeMode ? form.traineeName : "",
-      origin: form.origin,
-      count: formatNum(form.count),
-      originAmount: formatNum(form.originAmount),
-      // ② 元請台数
-      originNaikiCount: formatNum(form.originCounts?.naiki),
-      originGaikiCount: formatNum(form.originCounts?.gaiki),
-      originRoboCount: formatNum(form.originCounts?.robo),
-      originRfCount: formatNum(form.originCounts?.rf),
-      originSonotaCount: formatNum(form.originCounts?.sonota),
-      naikiCount: form.additions.naiki.enabled ? formatNum(form.additions.naiki.count) : 0,
-      naikiAmount: form.additions.naiki.enabled ? formatNum(form.additions.naiki.amount) : 0,
-      gaikiCount: form.additions.gaiki.enabled ? formatNum(form.additions.gaiki.count) : 0,
-      gaikiAmount: form.additions.gaiki.enabled ? formatNum(form.additions.gaiki.amount) : 0,
-      roboCount: form.additions.robo.enabled ? formatNum(form.additions.robo.count) : 0,
-      roboAmount: form.additions.robo.enabled ? formatNum(form.additions.robo.amount) : 0,
-      rfCount: form.additions.rf.enabled ? formatNum(form.additions.rf.count) : 0,
-      rfAmount: form.additions.rf.enabled ? formatNum(form.additions.rf.amount) : 0,
-      mizuCount: form.additions.mizu.enabled ? formatNum(form.additions.mizu.count) : 0,
-      mizuAmount: form.additions.mizu.enabled ? formatNum(form.additions.mizu.amount) : 0,
-      kokinCount: formatNum(form.kokinCount),
-      kokinAmount: formatNum(form.kokinAmount),
-      sonotaAmount: form.additions.sonota.enabled ? formatNum(form.additions.sonota.amount) : 0,
-      sonotaDetail: form.additions.sonota.enabled ? (form.additions.sonota.detail || "") : "",
-      inceCount: form.additions.ince.enabled ? formatNum(form.additions.ince.count) : 0,
-      inceAmount: form.additions.ince.enabled ? formatNum(form.additions.ince.amount) : 0,
+      origin: (form.centers || []).map(c => c.origin).filter(Boolean).join("・"),
+      count: (form.centers || []).reduce((s, c) => s + formatNum(c.count), 0),
+      originAmount: (form.centers || []).reduce((s, c) => s + formatNum(c.originAmount), 0),
+      // ② 元請台数（合算）
+      originNaikiCount: (form.centers || []).reduce((s, c) => s + formatNum(c.originCounts?.naiki), 0),
+      originGaikiCount: (form.centers || []).reduce((s, c) => s + formatNum(c.originCounts?.gaiki), 0),
+      originRoboCount: (form.centers || []).reduce((s, c) => s + formatNum(c.originCounts?.robo), 0),
+      originRfCount: (form.centers || []).reduce((s, c) => s + formatNum(c.originCounts?.rf), 0),
+      originSonotaCount: (form.centers || []).reduce((s, c) => s + formatNum(c.originCounts?.sonota), 0),
+      naikiCount: (form.centers || []).reduce((s, c) => s + (c.additions.naiki.enabled ? formatNum(c.additions.naiki.count) : 0), 0),
+      naikiAmount: (form.centers || []).reduce((s, c) => s + (c.additions.naiki.enabled ? formatNum(c.additions.naiki.amount) : 0), 0),
+      gaikiCount: (form.centers || []).reduce((s, c) => s + (c.additions.gaiki.enabled ? formatNum(c.additions.gaiki.count) : 0), 0),
+      gaikiAmount: (form.centers || []).reduce((s, c) => s + (c.additions.gaiki.enabled ? formatNum(c.additions.gaiki.amount) : 0), 0),
+      roboCount: (form.centers || []).reduce((s, c) => s + (c.additions.robo.enabled ? formatNum(c.additions.robo.count) : 0), 0),
+      roboAmount: (form.centers || []).reduce((s, c) => s + (c.additions.robo.enabled ? formatNum(c.additions.robo.amount) : 0), 0),
+      rfCount: (form.centers || []).reduce((s, c) => s + (c.additions.rf.enabled ? formatNum(c.additions.rf.count) : 0), 0),
+      rfAmount: (form.centers || []).reduce((s, c) => s + (c.additions.rf.enabled ? formatNum(c.additions.rf.amount) : 0), 0),
+      mizuCount: (form.centers || []).reduce((s, c) => s + (c.additions.mizu.enabled ? formatNum(c.additions.mizu.count) : 0), 0),
+      mizuAmount: (form.centers || []).reduce((s, c) => s + (c.additions.mizu.enabled ? formatNum(c.additions.mizu.amount) : 0), 0),
+      kokinCount: (form.centers || []).reduce((s, c) => s + formatNum(c.kokinCount), 0),
+      kokinAmount: (form.centers || []).reduce((s, c) => s + formatNum(c.kokinAmount), 0),
+      sonotaAmount: (form.centers || []).reduce((s, c) => s + (c.additions.sonota.enabled ? formatNum(c.additions.sonota.amount) : 0), 0),
+      sonotaDetail: (form.centers || []).map(c => c.additions.sonota.enabled ? (c.additions.sonota.detail || "") : "").filter(Boolean).join(" / "),
+      inceCount: (form.centers || []).reduce((s, c) => s + (c.additions.ince.enabled ? formatNum(c.additions.ince.count) : 0), 0),
+      inceAmount: (form.centers || []).reduce((s, c) => s + (c.additions.ince.enabled ? formatNum(c.additions.ince.amount) : 0), 0),
       total,
       manCount: form.manCount,
       partnerNames: form.partnerNames.filter(n => n.trim()),
@@ -517,7 +621,9 @@ export default function App() {
   };
 
   const handleReset = () => {
-    setForm({ ...defaultForm, origin: settings.centerName || "" });
+    const c = defaultCenter();
+    if (settings.centerName) c.origin = settings.centerName;
+    setForm({ ...defaultForm, centers: [c] });
     setSubmitted(false);
     setSendStatus(null);
     setIsAbsence(false);
@@ -525,24 +631,51 @@ export default function App() {
     setTab("form");
   };
 
-  const updateAddition = (key, field, value) => {
-    setForm((f) => ({
-      ...f,
-      additions: {
-        ...f.additions,
-        [key]: { ...f.additions[key], [field]: value },
-      },
-    }));
+  const updateCenter = (ci, field, value) => {
+    setForm((f) => {
+      const centers = [...f.centers];
+      centers[ci] = { ...centers[ci], [field]: value };
+      return { ...f, centers };
+    });
   };
 
-  const toggleAddition = (key) => {
-    setForm((f) => ({
-      ...f,
-      additions: {
-        ...f.additions,
-        [key]: { ...f.additions[key], enabled: !f.additions[key].enabled },
-      },
-    }));
+  const updateCenterAddition = (ci, key, field, value) => {
+    setForm((f) => {
+      const centers = [...f.centers];
+      centers[ci] = {
+        ...centers[ci],
+        additions: {
+          ...centers[ci].additions,
+          [key]: { ...centers[ci].additions[key], [field]: value },
+        },
+      };
+      return { ...f, centers };
+    });
+  };
+
+  const toggleCenterAddition = (ci, key) => {
+    setForm((f) => {
+      const centers = [...f.centers];
+      centers[ci] = {
+        ...centers[ci],
+        additions: {
+          ...centers[ci].additions,
+          [key]: { ...centers[ci].additions[key], enabled: !centers[ci].additions[key].enabled },
+        },
+      };
+      return { ...f, centers };
+    });
+  };
+
+  const addCenter = () => {
+    setForm((f) => ({ ...f, centers: [...f.centers, defaultCenter()] }));
+  };
+
+  const removeCenter = (ci) => {
+    setForm((f) => {
+      const centers = f.centers.filter((_, i) => i !== ci);
+      return { ...f, centers: centers.length > 0 ? centers : [defaultCenter()] };
+    });
   };
 
   const setManCount = (n) => {
@@ -902,147 +1035,170 @@ function res(obj) {
               )}
             </Section>
 
-            {/* エディオン */}
-            {!form.traineeMode && (
-              <Section title="エディオン" t={t}>
-                <Row label={<>センター<Req /></>} t={t}>
-                  <Input
-                    value={form.origin}
-                    onChange={(v) => setForm((f) => ({ ...f, origin: v }))}
-                    placeholder="例：春日井"
-                    t={t}
-                  />
-                </Row>
-                <Row label={<>件数<Req /></>} t={t}>
-                  <Input
-                    value={form.count}
-                    onChange={(v) => setForm((f) => ({ ...f, count: v }))}
-                    type="number"
-                    suffix="件"
-                    t={t}
-                  />
-                </Row>
-                <Row label={<>金額<Req /></>} t={t}>
-                  <MoneyInput
-                    value={form.originAmount}
-                    onChange={(v) => setForm((f) => ({ ...f, originAmount: v }))}
-                    t={t}
-                  />
-                </Row>
-                {/* ② 元請台数（任意） */}
-                <div style={{ marginTop: 8, borderTop: `1px solid ${t.cardBorder}`, paddingTop: 10 }}>
-                  <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 8 }}>台数内訳（任意）</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {[
-                      { key: "naiki", label: "内機" },
-                      { key: "robo", label: "ロボ" },
-                      { key: "gaiki", label: "外機" },
-                      { key: "rf", label: "RF" },
-                      { key: "sonota", label: "他" },
-                    ].map(item => (
-                      <div key={item.key} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <span style={{ fontSize: 12, color: t.textSub, minWidth: 28 }}>{item.label}</span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          value={form.originCounts?.[item.key] || ""}
-                          onChange={(e) => {
-                            const v = e.target.value.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).replace(/[^0-9]/g, "");
-                            setForm(f => ({ ...f, originCounts: { ...f.originCounts, [item.key]: v } }));
-                          }}
-                          style={{
-                            width: 36, background: t.input, border: `1px solid ${t.inputBorder}`,
-                            borderRadius: 6, color: t.text, padding: "4px 6px",
-                            fontSize: 13, textAlign: "center", outline: "none",
-                          }}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </Section>
-            )}
-
-            {/* 追加 */}
-            {!form.traineeMode && (
-              <Section title="追加（該当するものをON）" t={t}>
-                {addItems.map((item) => {
-                  const a = form.additions[item.key];
-                  return (
-                    <div key={item.key} style={{ marginBottom: 12 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: a.enabled ? 8 : 0 }}>
-                        <Toggle active={a.enabled} onClick={() => toggleAddition(item.key)} t={t} />
-                        <span style={{ fontSize: 15, fontWeight: 600 }}>{item.label}</span>
-                      </div>
-                      {a.enabled && (
-                        <div style={{ paddingLeft: 46, display: "flex", flexDirection: "column", gap: 6 }}>
-                          {item.hasCount ? (
-                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                              <div style={{ flex: "0 0 80px" }}>
-                                <Input value={a.count} onChange={(v) => updateAddition(item.key, "count", v)} type="number" suffix="台" t={t} />
-                              </div>
-                              <div style={{ flex: 1 }}>
-                                <MoneyInput value={a.amount} onChange={(v) => updateAddition(item.key, "amount", v)} t={t} />
-                              </div>
-                            </div>
-                          ) : (
-                            <MoneyInput value={a.amount} onChange={(v) => updateAddition(item.key, "amount", v)} t={t} />
-                          )}
-                          {a.detail !== null && a.detail !== undefined ? (
-                            <input
-                              type="text"
-                              value={a.detail}
-                              onChange={(e) => updateAddition(item.key, "detail", e.target.value)}
-                              placeholder={item.key === "sonota" ? "例：抗菌2台" : "例：他者分"}
-                              autoFocus
-                              style={{
-                                background: t.input, border: `1px solid ${t.inputBorder}`,
-                                borderRadius: 6, color: t.text, padding: "5px 10px",
-                                fontSize: 12, outline: "none", width: "100%", boxSizing: "border-box",
-                              }}
-                            />
-                          ) : (
-                            <button
-                              onClick={() => updateAddition(item.key, "detail", "")}
-                              style={{
-                                background: "transparent", border: "none",
-                                color: t.textMuted, fontSize: 11, cursor: "pointer",
-                                padding: "2px 0",
-                              }}
-                            >
-                              ＋ メモを追加
-                            </button>
-                          )}
+            {/* センターごとのブロック */}
+            {!form.traineeMode && (form.centers || []).map((center, ci) => (
+              <div key={ci} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <Section title={`エディオン${(form.centers || []).length > 1 ? ` ${ci + 1}` : ""}`} t={t}>
+                  {(form.centers || []).length > 1 && (
+                    <button
+                      onClick={() => removeCenter(ci)}
+                      style={{
+                        background: "transparent", border: "none",
+                        color: t.textMuted, fontSize: 12, cursor: "pointer",
+                        padding: "0 0 8px", textAlign: "right", width: "100%",
+                      }}
+                    >
+                      ✕ このセンターを削除
+                    </button>
+                  )}
+                  <Row label={<>センター<Req /></>} t={t}>
+                    <Input
+                      value={center.origin}
+                      onChange={(v) => updateCenter(ci, "origin", v)}
+                      placeholder="例：春日井"
+                      t={t}
+                    />
+                  </Row>
+                  <Row label={<>件数<Req /></>} t={t}>
+                    <Input
+                      value={center.count}
+                      onChange={(v) => updateCenter(ci, "count", v)}
+                      type="number"
+                      suffix="件"
+                      t={t}
+                    />
+                  </Row>
+                  <Row label={<>金額<Req /></>} t={t}>
+                    <MoneyInput
+                      value={center.originAmount}
+                      onChange={(v) => updateCenter(ci, "originAmount", v)}
+                      t={t}
+                    />
+                  </Row>
+                  {/* ② 元請台数（任意） */}
+                  <div style={{ marginTop: 8, borderTop: `1px solid ${t.cardBorder}`, paddingTop: 10 }}>
+                    <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 8 }}>台数内訳（任意）</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {[
+                        { key: "naiki", label: "内機" },
+                        { key: "robo", label: "ロボ" },
+                        { key: "gaiki", label: "外機" },
+                        { key: "rf", label: "RF" },
+                        { key: "sonota", label: "他" },
+                      ].map(item => (
+                        <div key={item.key} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <span style={{ fontSize: 12, color: t.textSub, minWidth: 28 }}>{item.label}</span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={center.originCounts?.[item.key] || ""}
+                            onChange={(e) => {
+                              const v = e.target.value.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).replace(/[^0-9]/g, "");
+                              updateCenter(ci, "originCounts", { ...center.originCounts, [item.key]: v });
+                            }}
+                            style={{
+                              width: 36, background: t.input, border: `1px solid ${t.inputBorder}`,
+                              borderRadius: 6, color: t.text, padding: "4px 6px",
+                              fontSize: 13, textAlign: "center", outline: "none",
+                            }}
+                          />
                         </div>
-                      )}
+                      ))}
                     </div>
-                  );
-                })}
-              </Section>
-            )}
+                  </div>
+                </Section>
 
-            {/* 抗菌（スプレッド転記用） */}
-            {!form.traineeMode && (
-              <div style={{
-                background: t.card,
-                borderRadius: 12,
-                padding: "16px",
-                border: `1px solid ${t.cardBorder}`,
-              }}>
-                <div style={{ fontSize: 11, color: t.textSub, fontWeight: 700, letterSpacing: 2, marginBottom: 12 }}>
-                  抗菌（スプレッド転記用）
+                {/* 追加 */}
+                <Section title={`追加（該当するものをON）${(form.centers || []).length > 1 ? ` - センター${ci + 1}` : ""}`} t={t}>
+                  {addItems.map((item) => {
+                    const a = center.additions[item.key];
+                    return (
+                      <div key={item.key} style={{ marginBottom: 12 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: a.enabled ? 8 : 0 }}>
+                          <Toggle active={a.enabled} onClick={() => toggleCenterAddition(ci, item.key)} t={t} />
+                          <span style={{ fontSize: 15, fontWeight: 600 }}>{item.label}</span>
+                        </div>
+                        {a.enabled && (
+                          <div style={{ paddingLeft: 46, display: "flex", flexDirection: "column", gap: 6 }}>
+                            {item.hasCount ? (
+                              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                <div style={{ flex: "0 0 80px" }}>
+                                  <Input value={a.count} onChange={(v) => updateCenterAddition(ci, item.key, "count", v)} type="number" suffix="台" t={t} />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <MoneyInput value={a.amount} onChange={(v) => updateCenterAddition(ci, item.key, "amount", v)} t={t} />
+                                </div>
+                              </div>
+                            ) : (
+                              <MoneyInput value={a.amount} onChange={(v) => updateCenterAddition(ci, item.key, "amount", v)} t={t} />
+                            )}
+                            {a.detail !== null && a.detail !== undefined ? (
+                              <input
+                                type="text"
+                                value={a.detail}
+                                onChange={(e) => updateCenterAddition(ci, item.key, "detail", e.target.value)}
+                                placeholder={item.key === "sonota" ? "例：抗菌2台" : "例：他者分"}
+                                autoFocus
+                                style={{
+                                  background: t.input, border: `1px solid ${t.inputBorder}`,
+                                  borderRadius: 6, color: t.text, padding: "5px 10px",
+                                  fontSize: 12, outline: "none", width: "100%", boxSizing: "border-box",
+                                }}
+                              />
+                            ) : (
+                              <button
+                                onClick={() => updateCenterAddition(ci, item.key, "detail", "")}
+                                style={{
+                                  background: "transparent", border: "none",
+                                  color: t.textMuted, fontSize: 11, cursor: "pointer",
+                                  padding: "2px 0",
+                                }}
+                              >
+                                ＋ メモを追加
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </Section>
+
+                {/* 抗菌（スプレッド転記用） */}
+                <div style={{
+                  background: t.card, borderRadius: 12, padding: "16px",
+                  border: `1px solid ${t.cardBorder}`,
+                }}>
+                  <div style={{ fontSize: 11, color: t.textSub, fontWeight: 700, letterSpacing: 2, marginBottom: 12 }}>
+                    抗菌（スプレッド転記用）{(form.centers || []).length > 1 ? ` - センター${ci + 1}` : ""}
+                  </div>
+                  <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 10, lineHeight: 1.6 }}>
+                    報告文には出ません。スプレッドシートの抗菌列に転記されます。
+                  </div>
+                  <Row label="台数" t={t}>
+                    <Input value={center.kokinCount} onChange={(v) => updateCenter(ci, "kokinCount", v)} type="number" suffix="台" t={t} />
+                  </Row>
+                  <Row label="金額" t={t}>
+                    <MoneyInput value={center.kokinAmount} onChange={(v) => updateCenter(ci, "kokinAmount", v)} t={t} />
+                  </Row>
                 </div>
-                <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 10, lineHeight: 1.6 }}>
-                  報告文には出ません。スプレッドシートの抗菌列に転記されます。
-                </div>
-                <Row label="台数" t={t}>
-                  <Input value={form.kokinCount} onChange={(v) => setForm((f) => ({ ...f, kokinCount: v }))} type="number" suffix="台" t={t} />
-                </Row>
-                <Row label="金額" t={t}>
-                  <MoneyInput value={form.kokinAmount} onChange={(v) => setForm((f) => ({ ...f, kokinAmount: v }))} t={t} />
-                </Row>
               </div>
+            ))}
+
+            {/* センター追加ボタン */}
+            {!form.traineeMode && (
+              <button
+                onClick={addCenter}
+                style={{
+                  width: "100%", padding: "12px", borderRadius: 10,
+                  border: `2px dashed ${t.inputBorder}`,
+                  background: "transparent", color: t.textSub,
+                  fontSize: 14, fontWeight: 600, cursor: "pointer",
+                }}
+              >
+                ＋ センターを追加
+              </button>
             )}
 
             {/* 合計 */}
@@ -1250,39 +1406,45 @@ function res(obj) {
               {form.traineeMode ? (
                 <ConfirmRow label="研修同行" value={form.traineeName} t={t} />
               ) : (
-                <>
-                  <ConfirmRow label="センター" value={form.origin} t={t} />
-                  <ConfirmRow label="件数" value={`${form.count}件`} t={t} />
-                  <ConfirmRow label="基本金額" value={`¥${formatNum(form.originAmount).toLocaleString()}`} t={t} />
-                  {/* ② 元請台数 */}
-                  {(() => {
-                    const oc = form.originCounts || {};
-                    const parts = [
-                      oc.naiki && `内機${oc.naiki}`,
-                      oc.robo && `ロボ${oc.robo}`,
-                      oc.gaiki && `外機${oc.gaiki}`,
-                      oc.rf && `RF${oc.rf}`,
-                      oc.sonota && `他${oc.sonota}`,
-                    ].filter(Boolean);
-                    return parts.length > 0 ? (
-                      <ConfirmRow label="台数内訳" value={parts.join(" / ")} t={t} />
-                    ) : null;
-                  })()}
-                </>
+                (form.centers || []).map((center, ci) => (
+                  <div key={ci}>
+                    {(form.centers || []).length > 1 && (
+                      <div style={{ fontSize: 11, color: t.accent, fontWeight: 700, marginTop: ci > 0 ? 12 : 0, marginBottom: 4 }}>
+                        センター{ci + 1}
+                      </div>
+                    )}
+                    <ConfirmRow label="センター" value={center.origin} t={t} />
+                    <ConfirmRow label="件数" value={`${center.count}件`} t={t} />
+                    <ConfirmRow label="基本金額" value={`¥${formatNum(center.originAmount).toLocaleString()}`} t={t} />
+                    {(() => {
+                      const oc = center.originCounts || {};
+                      const parts = [
+                        oc.naiki && `内機${oc.naiki}`,
+                        oc.robo && `ロボ${oc.robo}`,
+                        oc.gaiki && `外機${oc.gaiki}`,
+                        oc.rf && `RF${oc.rf}`,
+                        oc.sonota && `他${oc.sonota}`,
+                      ].filter(Boolean);
+                      return parts.length > 0 ? (
+                        <ConfirmRow label="台数内訳" value={parts.join(" / ")} t={t} />
+                      ) : null;
+                    })()}
+                  </div>
+                ))
               )}
             </div>
 
             {/* 追加内訳 */}
-            {!form.traineeMode && (
-              <div style={{ background: t.card, borderRadius: 12, padding: "16px", border: `1px solid ${t.cardBorder}` }}>
+            {!form.traineeMode && (form.centers || []).map((center, ci) => (
+              <div key={ci} style={{ background: t.card, borderRadius: 12, padding: "16px", border: `1px solid ${t.cardBorder}` }}>
                 <div style={{ fontSize: 11, color: t.accent, fontWeight: 700, letterSpacing: 2, marginBottom: 12 }}>
-                  追加内訳
+                  追加内訳{(form.centers || []).length > 1 ? ` - センター${ci + 1}` : ""}
                 </div>
-                {addItems.filter(item => form.additions[item.key].enabled && formatNum(form.additions[item.key].amount) > 0).length === 0 ? (
+                {addItems.filter(item => center.additions[item.key].enabled && formatNum(center.additions[item.key].amount) > 0).length === 0 ? (
                   <div style={{ fontSize: 14, color: t.textMuted }}>追加なし</div>
                 ) : (
                   addItems.map((item) => {
-                    const a = form.additions[item.key];
+                    const a = center.additions[item.key];
                     if (!a.enabled || formatNum(a.amount) === 0) return null;
                     return (
                       <ConfirmRow
@@ -1294,11 +1456,11 @@ function res(obj) {
                     );
                   })
                 )}
-                {formatNum(form.kokinCount) > 0 && (
-                  <ConfirmRow label={`抗菌 ${form.kokinCount}台（転記用）`} value={`¥${formatNum(form.kokinAmount).toLocaleString()}`} t={t} />
+                {formatNum(center.kokinCount) > 0 && (
+                  <ConfirmRow label={`抗菌 ${center.kokinCount}台（転記用）`} value={`¥${formatNum(center.kokinAmount).toLocaleString()}`} t={t} />
                 )}
               </div>
-            )}
+            ))}
 
             {/* 合計 */}
             {!form.traineeMode && (
