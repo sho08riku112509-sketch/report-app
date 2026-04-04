@@ -1066,7 +1066,7 @@ function res(obj) {
                 </Row>
               )}
               {/* ⑩ 相手名：選択＋直接入力＋研修チェック */}
-              {form.manCount >= 2 && form.partnerNames.map((name, i) => (
+              {form.manCount >= 2 && !form.traineeMode && form.partnerNames.map((name, i) => (
                 <div key={i} style={{ marginBottom: 10 }}>
                   <Row label={`相手${form.manCount > 2 ? (i + 1) : ""}`} t={t}>
                     {partnerInputModes[i] === "input" ? (
