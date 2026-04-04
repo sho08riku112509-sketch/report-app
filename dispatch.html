@@ -4,603 +4,450 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>配車表</title>
-<!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --bg: #0f0f0f; --card: #1a1a1a; --card-border: #2a2a2a;
-  --accent: #ff6b00; --accent2: #ff9500;
-  --text: #f0f0f0; --text-sub: #888; --text-muted: #555;
-  --input-bg: #111; --input-border: #333;
-  --success-bg: #0f3a1a; --success-text: #4ade80;
-  --error-bg: #3a0f0f; --error-text: #f87171;
-  --warn-text: #fbbf24;
-}
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: var(--bg); color: var(--text);
-  min-height: 100vh; -webkit-text-size-adjust: 100%;
-}
-.header {
-  position: sticky; top: 0; z-index: 100;
-  background: var(--card); border-bottom: 1px solid var(--card-border);
-  padding: 12px 16px; display: flex; align-items: center; gap: 10px;
-  flex-wrap: wrap;
-}
-.header h1 {
-  font-size: 20px; font-weight: 800;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
-.header .spacer { flex: 1; }
-.header-row2 {
-  width: 100%; display: flex; align-items: center; gap: 8px; margin-top: 8px;
-}
-.sync-badge {
-  font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 600;
-}
-.sync-badge.connected { background: var(--success-bg); color: var(--success-text); }
-.sync-badge.disconnected { background: var(--error-bg); color: var(--error-text); }
-.sync-badge.syncing { background: #3a3a0f; color: var(--warn-text); }
-.date-input {
-  background: var(--input-bg); border: 1px solid var(--input-border);
-  border-radius: 8px; color: var(--text); padding: 6px 10px; font-size: 13px;
-  outline: none; font-family: inherit;
-}
-.btn {
-  border: none; border-radius: 8px; cursor: pointer;
-  font-weight: 600; font-size: 13px; padding: 8px 16px;
-  transition: opacity .15s; white-space: nowrap;
-}
-.btn:active { opacity: .7; }
-.btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; }
-.btn-danger { background: var(--error-bg); color: var(--error-text); border: 1px solid rgba(248,113,113,.3); }
-.btn-ghost { background: transparent; color: var(--text-sub); border: 1px solid var(--card-border); }
-.btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
-.btn-block { width: 100%; }
-.card {
-  background: var(--card); border: 1px solid var(--card-border);
-  border-radius: 12px; padding: 16px; margin-bottom: 12px;
-}
-.card h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
-.input, textarea {
-  width: 100%; padding: 8px 12px;
-  background: var(--input-bg); border: 1px solid var(--input-border);
-  border-radius: 8px; color: var(--text); font-size: 14px;
-  outline: none; font-family: inherit;
-}
-textarea { min-height: 120px; resize: vertical; line-height: 1.6; }
-.flex { display: flex; }
-.flex-wrap { flex-wrap: wrap; }
-.gap-8 { gap: 8px; }
-.items-center { align-items: center; }
-.justify-between { justify-content: space-between; }
-.mb-12 { margin-bottom: 12px; }
-.mt-8 { margin-top: 8px; }
-.driver-tag {
-  display: flex; align-items: center; gap: 6px;
-  padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;
-}
-.driver-tag .count { font-size: 11px; color: var(--text-sub); }
-.driver-tag .remove {
-  background: none; border: none; color: var(--text-muted);
-  cursor: pointer; font-size: 14px; padding: 0 2px; line-height: 1;
-}
-.area-header {
-  font-size: 12px; color: var(--text-sub); font-weight: 600;
-  margin-bottom: 6px; border-bottom: 1px solid var(--card-border); padding-bottom: 4px;
-}
-.route-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 10px; margin-bottom: 4px; border-radius: 6px;
-  border: 1px solid transparent; cursor: grab; font-size: 14px;
-  transition: background .15s; user-select: none;
-}
-.route-item:active { cursor: grabbing; }
-.route-item.selected {
-  background: rgba(255,107,0,.13); border-color: rgba(255,107,0,.4);
-}
-.route-item .trip-num { color: var(--accent); font-weight: 700; }
-.route-item .cargo { color: var(--text-sub); }
-.route-item .dest { font-weight: 500; }
-.route-item .flex-1 { flex: 1; }
-.route-item .assign-btn {
-  background: none; border: 1px solid var(--input-border);
-  border-radius: 4px; color: var(--text-sub); cursor: pointer;
-  font-size: 11px; padding: 2px 8px;
-}
-.route-item .remove-btn {
-  background: none; border: none; color: var(--text-muted);
-  cursor: pointer; font-size: 14px; padding: 0 4px;
-}
-.dropdown {
-  position: absolute; right: 0; top: 100%;
-  background: var(--card); border: 1px solid var(--card-border);
-  border-radius: 8px; padding: 4px; z-index: 50;
-  min-width: 100px; box-shadow: 0 4px 12px rgba(0,0,0,.5);
-}
-.dropdown button {
-  display: block; width: 100%; text-align: left;
-  padding: 6px 10px; background: none; border: none;
-  cursor: pointer; font-size: 13px; font-weight: 600; border-radius: 4px;
-}
-.driver-section { transition: border-color .15s; }
-.driver-section.drag-over { border-color: rgba(255,107,0,.5); background: rgba(255,107,0,.05); }
-.driver-section .empty-hint {
-  padding: 20px 0; text-align: center; color: var(--text-muted);
-  font-size: 13px; border-top: 1px dashed var(--card-border); margin-top: 8px;
-}
-.driver-section h2 .count { font-size: 12px; color: var(--text-sub); font-weight: 400; margin-left: 8px; }
-.preview {
-  background: var(--input-bg); border-radius: 8px; padding: 12px;
-  font-size: 13px; line-height: 1.8; white-space: pre-wrap; font-family: monospace;
-}
-.preview .driver-name { font-weight: 700; }
-.preview .warn { color: var(--warn-text); font-weight: 700; }
-.toast {
-  position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
-  padding: 10px 24px; border-radius: 8px; z-index: 200;
-  font-weight: 600; font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,.4);
-  transition: opacity .3s;
-}
-.toast.success { background: var(--success-bg); color: var(--success-text); }
-.toast.error { background: var(--error-bg); color: var(--error-text); }
-.assign-bar {
-  display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
-}
-.assign-bar .label { font-size: 12px; color: var(--text-sub); }
-.assign-bar button {
-  padding: 4px 10px; border-radius: 12px; cursor: pointer;
-  font-size: 12px; font-weight: 600; border-width: 1px; border-style: solid;
-}
-.container { padding: 16px; max-width: 900px; margin: 0 auto; }
-@media (max-width: 600px) {
-  .header { padding: 10px 12px; gap: 6px; }
-  .header h1 { font-size: 17px; }
-  .container { padding: 10px; }
-  .btn { padding: 6px 12px; font-size: 12px; }
-}
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0f0f0f;--card:#1a1a1a;--card-border:#2a2a2a;--accent:#ff6b00;--accent2:#ff9500;--text:#f0f0f0;--text-sub:#888;--text-muted:#555;--input-bg:#111;--input-border:#333;--success-bg:#0f3a1a;--success-text:#4ade80;--error-bg:#3a0f0f;--error-text:#f87171;--warn-text:#fbbf24}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-text-size-adjust:100%;padding-bottom:80px}
+.header{position:sticky;top:0;z-index:100;background:var(--card);border-bottom:1px solid var(--card-border);padding:10px 12px}
+.header-top{display:flex;align-items:center;gap:8px}
+.header h1{font-size:18px;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.spacer{flex:1}
+.sync-badge{font-size:10px;padding:2px 8px;border-radius:12px;font-weight:600}
+.sync-badge.connected{background:var(--success-bg);color:var(--success-text)}
+.sync-badge.disconnected{background:var(--error-bg);color:var(--error-text)}
+.sync-badge.syncing{background:#3a3a0f;color:var(--warn-text)}
+.header-row2{display:flex;align-items:center;gap:6px;margin-top:8px}
+.date-input{background:var(--input-bg);border:1px solid var(--input-border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:12px;outline:none}
+.area-tabs{display:flex;gap:0;margin-top:8px}
+.area-tab{flex:1;padding:10px 0;text-align:center;font-size:14px;font-weight:700;border:none;cursor:pointer;background:transparent;color:var(--text-muted);border-bottom:2px solid transparent;transition:.2s}
+.area-tab.active{color:var(--accent);border-bottom-color:var(--accent);background:rgba(255,107,0,.08)}
+.area-tab .cnt{font-size:11px;font-weight:400;margin-left:4px;color:var(--text-sub)}
+.btn{border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;padding:8px 16px;transition:opacity .15s;white-space:nowrap}
+.btn:active{opacity:.7}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+.btn-danger{background:var(--error-bg);color:var(--error-text);border:1px solid rgba(248,113,113,.3)}
+.btn-ghost{background:transparent;color:var(--text-sub);border:1px solid var(--card-border)}
+.btn-sm{padding:4px 10px;font-size:12px;border-radius:6px}
+.btn-block{width:100%}
+.card{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:14px;margin-bottom:10px}
+.card h2{font-size:14px;font-weight:600;margin-bottom:10px}
+.input{width:100%;padding:10px 12px;background:var(--input-bg);border:1px solid var(--input-border);border-radius:8px;color:var(--text);font-size:16px;outline:none;font-family:inherit}
+textarea{width:100%;padding:10px 12px;background:var(--input-bg);border:1px solid var(--input-border);border-radius:8px;color:var(--text);font-size:14px;outline:none;font-family:inherit;min-height:100px;resize:vertical;line-height:1.6}
+.trip-btns{display:flex;gap:6px;margin-bottom:10px}
+.trip-btn{width:48px;height:48px;border-radius:10px;border:2px solid var(--input-border);background:var(--input-bg);color:var(--text);font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s}
+.trip-btn.active{border-color:var(--accent);background:rgba(255,107,0,.15);color:var(--accent)}
+.cargo-section{margin-bottom:10px}
+.cargo-row{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.cargo-type-btn{padding:8px 16px;border-radius:8px;border:2px solid var(--input-border);background:var(--input-bg);color:var(--text);font-size:15px;font-weight:700;cursor:pointer;transition:.15s;min-width:50px;text-align:center}
+.cargo-type-btn.active{border-color:var(--accent);background:rgba(255,107,0,.15);color:var(--accent)}
+.cargo-num{width:60px;padding:8px;background:var(--input-bg);border:1px solid var(--input-border);border-radius:8px;color:var(--text);font-size:16px;text-align:center;outline:none}
+.cargo-add-btn{width:40px;height:40px;border-radius:8px;border:1px dashed var(--input-border);background:transparent;color:var(--text-sub);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.cargo-remove-btn{width:32px;height:32px;border-radius:6px;border:none;background:var(--error-bg);color:var(--error-text);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.dest-input-wrap{position:relative;margin-bottom:10px}
+.dest-suggestions{position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--card-border);border-radius:0 0 8px 8px;z-index:50;max-height:150px;overflow-y:auto}
+.dest-suggest-item{padding:10px 12px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--card-border)}
+.dest-suggest-item:active{background:rgba(255,107,0,.15)}
+.route-item{display:flex;align-items:center;gap:8px;padding:10px;margin-bottom:4px;border-radius:8px;border:2px solid transparent;font-size:14px;transition:.15s;user-select:none;cursor:pointer;min-height:48px}
+.route-item.selected{background:rgba(255,107,0,.13);border-color:var(--accent)}
+.route-item .trip-num{color:var(--accent);font-weight:700;min-width:36px}
+.route-item .cargo{color:var(--text-sub)}
+.route-item .dest{font-weight:500;flex:1}
+.route-item .remove-btn{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;padding:4px 8px;min-width:32px;min-height:32px;display:flex;align-items:center;justify-content:center}
+.route-item .driver-badge{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600}
+.driver-bar{position:fixed;bottom:0;left:0;right:0;z-index:100;background:var(--card);border-top:1px solid var(--card-border);padding:8px 10px;display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.driver-bar-btn{padding:10px 14px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:700;border:2px solid;min-height:44px;display:flex;align-items:center;justify-content:center;transition:.15s}
+.driver-bar-btn:active{opacity:.7;transform:scale(.95)}
+.driver-bar-btn .cnt{font-size:10px;font-weight:400;margin-left:4px;opacity:.7}
+.preview{background:var(--input-bg);border-radius:8px;padding:12px;font-size:13px;line-height:1.8;white-space:pre-wrap;font-family:monospace}
+.toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);padding:10px 24px;border-radius:8px;z-index:200;font-weight:600;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,.4);transition:opacity .3s}
+.toast.success{background:var(--success-bg);color:var(--success-text)}
+.toast.error{background:var(--error-bg);color:var(--error-text)}
+.container{padding:12px;max-width:900px;margin:0 auto}
+.selection-info{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;padding:8px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:100;box-shadow:0 4px 12px rgba(255,107,0,.4)}
+.unassign-btn{font-size:11px;padding:2px 8px;border-radius:6px;border:1px solid var(--input-border);background:none;color:var(--text-sub);cursor:pointer;min-height:28px}
+@media(max-width:600px){.header{padding:8px 10px}.container{padding:8px}.btn{font-size:12px}}
 </style>
 </head>
 <body>
-
-<div class="header" id="headerEl">
+<div class="header">
+ <div class="header-top">
   <h1>配車表</h1>
   <div class="spacer"></div>
   <span id="syncBadge" class="sync-badge syncing">接続中...</span>
   <button class="btn btn-ghost btn-sm" onclick="shareUrl()">URL共有</button>
-  <button class="btn btn-primary" onclick="copyResult()">結果コピー</button>
-  <button class="btn btn-danger" onclick="clearAll()">全クリア</button>
-  <div class="header-row2">
-    <label style="font-size:12px;color:var(--text-sub)">日付:</label>
-    <input type="date" id="roomDate" class="date-input" onchange="switchRoom(this.value)">
-    <button class="btn btn-ghost btn-sm" onclick="goToday()">今日</button>
-    <button class="btn btn-ghost btn-sm" onclick="goTomorrow()">明日</button>
-  </div>
+  <button class="btn btn-primary btn-sm" onclick="copyResult()">結果コピー</button>
+  <button class="btn btn-danger btn-sm" onclick="clearAll()">全クリア</button>
+ </div>
+ <div class="header-row2">
+  <label style="font-size:12px;color:var(--text-sub)">日付:</label>
+  <input type="date" id="roomDate" class="date-input" onchange="switchRoom(this.value)">
+  <button class="btn btn-ghost btn-sm" onclick="goToday()">今日</button>
+  <button class="btn btn-ghost btn-sm" onclick="goTomorrow()">明日</button>
+ </div>
+ <div class="area-tabs" id="areaTabs"></div>
 </div>
-
 <div class="container" id="app"></div>
+<div class="driver-bar" id="driverBar"></div>
+<div id="selectionInfo" class="selection-info" style="display:none"></div>
 <div id="toast" class="toast" style="display:none;"></div>
-
 <script>
-// ===== Firebase Config =====
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyCkETt4udtIVVtHMTyyentSyup08_fTuKI",
-  authDomain: "haisha-fd5a6.firebaseapp.com",
-  databaseURL: "https://haisha-fd5a6-default-rtdb.firebaseio.com",
-  projectId: "haisha-fd5a6",
-  storageBucket: "haisha-fd5a6.firebasestorage.app",
-  messagingSenderId: "217424745404",
-  appId: "1:217424745404:web:485ca0f1649583927dd1b9",
-  measurementId: "G-9QDNBRVY8H"
-};
+const FIREBASE_CONFIG={apiKey:"AIzaSyCkETt4udtIVVtHMTyyentSyup08_fTuKI",authDomain:"haisha-fd5a6.firebaseapp.com",databaseURL:"https://haisha-fd5a6-default-rtdb.firebaseio.com",projectId:"haisha-fd5a6",storageBucket:"haisha-fd5a6.firebasestorage.app",messagingSenderId:"217424745404",appId:"1:217424745404:web:485ca0f1649583927dd1b9",measurementId:"G-9QDNBRVY8H"};
+const AREAS=["三重","四日市","名古屋西"];
+const DEFAULT_DRIVERS=[
+  {id:"d1",name:"瀬古",color:"#ff6b00"},{id:"d2",name:"米田",color:"#3b82f6"},
+  {id:"d3",name:"藤本",color:"#22c55e"},{id:"d4",name:"大田",color:"#a855f7"},
+  {id:"d5",name:"大澤",color:"#ef4444"},{id:"d6",name:"坂本",color:"#06b6d4"},
+  {id:"d7",name:"平岡",color:"#f59e0b"},{id:"d8",name:"田邊",color:"#ec4899"},
+  {id:"d9",name:"積木",color:"#14b8a6"}
+];
+const DRIVER_COLORS=["#ff6b00","#3b82f6","#22c55e","#a855f7","#ef4444","#06b6d4","#f59e0b","#ec4899","#14b8a6","#8b5cf6","#f97316","#6366f1"];
+const DEST_KEY="dispatch_destinations";
 
-let db = null;
-let currentRoom = "";
-let dbRef = null;
-let isRemoteUpdate = false;
+let db=null,currentRoom="",dbRef=null;
+let routes=[],drivers=[],selectedRoutes=new Set();
+let currentArea=AREAS[0],showBulk=false;
+let tripNum=1,cargoItems=[{type:"r",num:1}];
 
-function initFirebase(config) {
-  try {
-    if (!firebase.apps.length) {
-      firebase.initializeApp(config);
-    }
-    db = firebase.database();
+function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+function esc(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML}
+
+// Firebase
+function initFirebase(config){
+  try{
+    if(!firebase.apps.length)firebase.initializeApp(config);
+    db=firebase.database();
     setSyncStatus("connected");
-    // 接続状態監視
-    db.ref(".info/connected").on("value", (snap) => {
-      setSyncStatus(snap.val() ? "connected" : "disconnected");
-    });
+    db.ref(".info/connected").on("value",s=>{setSyncStatus(s.val()?"connected":"disconnected")});
     return true;
-  } catch (e) {
-    console.error("Firebase init error:", e);
-    setSyncStatus("disconnected");
-    return false;
-  }
+  }catch(e){console.error(e);setSyncStatus("disconnected");return false}
+}
+function setSyncStatus(s){
+  const el=document.getElementById("syncBadge");
+  if(s==="connected"){el.textContent="同期済み";el.className="sync-badge connected"}
+  else if(s==="disconnected"){el.textContent="未接続";el.className="sync-badge disconnected"}
+  else{el.textContent="同期中...";el.className="sync-badge syncing"}
 }
 
+// Room
+function getTodayStr(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function getTomorrowStr(){const d=new Date();d.setDate(d.getDate()+1);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function getRoomFromHash(){const m=location.hash.match(/room=(\d{4}-\d{2}-\d{2})/);return m?m[1]:null}
+function switchRoom(v){if(!v)return;currentRoom=v;location.hash="room="+v;document.getElementById("roomDate").value=v;selectedRoutes.clear();subscribeRoom(v)}
+function goToday(){switchRoom(getTodayStr())}
+function goTomorrow(){switchRoom(getTomorrowStr())}
 
-function setSyncStatus(status) {
-  const el = document.getElementById("syncBadge");
-  if (status === "connected") { el.textContent = "同期済み"; el.className = "sync-badge connected"; }
-  else if (status === "disconnected") { el.textContent = "未接続"; el.className = "sync-badge disconnected"; }
-  else { el.textContent = "同期中..."; el.className = "sync-badge syncing"; }
-}
-
-// ===== Room System =====
-function getTodayStr() {
-  const d = new Date();
-  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
-}
-
-function getTomorrowStr() {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
-}
-
-function getRoomFromHash() {
-  const h = location.hash;
-  const m = h.match(/room=(\d{4}-\d{2}-\d{2})/);
-  return m ? m[1] : null;
-}
-
-function switchRoom(dateStr) {
-  if (!dateStr) return;
-  currentRoom = dateStr;
-  location.hash = "room=" + dateStr;
-  document.getElementById("roomDate").value = dateStr;
-  selectedRoutes.clear();
-  subscribeRoom(dateStr);
-}
-
-function goToday() { switchRoom(getTodayStr()); }
-function goTomorrow() { switchRoom(getTomorrowStr()); }
-
-function subscribeRoom(roomId) {
-  // 前のリスナーを解除
-  if (dbRef) dbRef.off();
-  if (!db) {
-    // Firebase未設定時はlocalStorageフォールバック
-    routes = JSON.parse(localStorage.getItem("dispatch_routes_" + roomId) || "[]");
-    drivers = JSON.parse(localStorage.getItem("dispatch_drivers_" + roomId) || "[]");
-    render();
-    return;
-  }
-  dbRef = db.ref("dispatch/" + roomId);
+function subscribeRoom(roomId){
+  if(dbRef)dbRef.off();
+  if(!db){routes=[];drivers=JSON.parse(JSON.stringify(DEFAULT_DRIVERS));render();return}
+  dbRef=db.ref("dispatch/"+roomId);
   setSyncStatus("syncing");
-  dbRef.on("value", (snap) => {
-    const data = snap.val();
-    isRemoteUpdate = true;
-    if (data) {
-      routes = data.routes || [];
-      drivers = data.drivers || [];
-    } else {
-      routes = [];
-      drivers = [];
+  dbRef.on("value",snap=>{
+    const data=snap.val();
+    if(data){
+      routes=data.routes||[];
+      drivers=data.drivers||JSON.parse(JSON.stringify(DEFAULT_DRIVERS));
+    }else{
+      routes=[];
+      drivers=JSON.parse(JSON.stringify(DEFAULT_DRIVERS));
+      save();
     }
     selectedRoutes.clear();
     render();
     setSyncStatus("connected");
-    isRemoteUpdate = false;
   });
 }
-
-function shareUrl() {
-  const url = location.origin + location.pathname + "#room=" + currentRoom;
-  navigator.clipboard.writeText(url).then(() => showToast("URLをコピーしました"));
+function save(){
+  if(db&&dbRef)dbRef.set({routes,drivers});
+}
+function shareUrl(){
+  const url=location.origin+location.pathname+"#room="+currentRoom;
+  navigator.clipboard.writeText(url).then(()=>showToast("URLをコピーしました"));
 }
 
-// ===== State =====
-const DRIVER_COLORS = [
-  "#ff6b00","#3b82f6","#22c55e","#a855f7","#ef4444",
-  "#06b6d4","#f59e0b","#ec4899","#14b8a6","#8b5cf6",
-  "#f97316","#6366f1","#84cc16","#e11d48","#0ea5e9",
-];
-
-let routes = [];
-let drivers = [];
-let selectedRoutes = new Set();
-let dragRouteId = null;
-let showInput = true;
-
-function save() {
-  if (db && dbRef) {
-    dbRef.set({ routes: routes, drivers: drivers });
-  } else {
-    localStorage.setItem("dispatch_routes_" + currentRoom, JSON.stringify(routes));
-    localStorage.setItem("dispatch_drivers_" + currentRoom, JSON.stringify(drivers));
-  }
+// Destinations history
+function getSavedDests(area){
+  try{const d=JSON.parse(localStorage.getItem(DEST_KEY)||"{}");return d[area]||[]}catch{return[]}
+}
+function saveDest(area,dest){
+  try{
+    const d=JSON.parse(localStorage.getItem(DEST_KEY)||"{}");
+    if(!d[area])d[area]=[];
+    if(!d[area].includes(dest)){d[area].unshift(dest);if(d[area].length>30)d[area].pop()}
+    localStorage.setItem(DEST_KEY,JSON.stringify(d));
+  }catch{}
 }
 
-function genId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+// Toast
+let toastTimer=null;
+function showToast(msg,type="success"){
+  const el=document.getElementById("toast");el.textContent=msg;
+  el.className="toast "+type;el.style.display="block";
+  if(toastTimer)clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{el.style.display="none"},2500);
 }
 
-// ===== Parse =====
-function parseDispatchText(text) {
-  const lines = text.trim().split("\n").filter(l => l.trim());
-  const result = [];
-  let area = "";
-  for (const line of lines) {
-    const t = line.trim();
-    if (/^(明日の|今日の|本日の)/.test(t) || /エリア$/.test(t)) {
-      area = t.replace(/^(明日の|今日の|本日の)/, "").replace(/エリア$/, "").trim();
-      continue;
+// Parse bulk
+function parseDispatchText(text){
+  const lines=text.trim().split("\n").filter(l=>l.trim());
+  const result=[];let area=currentArea;
+  for(const line of lines){
+    const t=line.trim();
+    if(/^(明日の|今日の|本日の)/.test(t)||/エリア$/.test(t)){
+      area=t.replace(/^(明日の|今日の|本日の)/,"").replace(/エリア$/,"").trim();continue;
     }
-    const m = t.match(/^(\d+)便[\s\u3000]+(.+?)[\s\u3000]+([\w\d.]+)$/);
-    if (m) {
-      result.push({
-        id: genId(), tripNum: parseInt(m[1]),
-        destination: m[2].trim(), cargo: m[3].trim(),
-        area: area, driverId: null,
-      });
-    }
+    const m=t.match(/^(\d+)便[\s\u3000]+(.+?)[\s\u3000]+([\w\d.]+)$/);
+    if(m){result.push({id:genId(),tripNum:parseInt(m[1]),destination:m[2].trim(),cargo:m[3].trim(),area,driverId:null})}
   }
   return result;
 }
 
-// ===== Toast =====
-let toastTimer = null;
-function showToast(msg, type = "success") {
-  const el = document.getElementById("toast");
-  el.textContent = msg;
-  el.className = "toast " + type;
-  el.style.display = "block";
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.style.display = "none"; }, 2500);
-}
-
-// ===== Actions =====
-function addRoutes() {
-  const ta = document.getElementById("routeInput");
-  const text = ta.value.trim();
-  if (!text) return;
-  const newRoutes = parseDispatchText(text);
-  if (newRoutes.length === 0) { showToast("便データを読み取れませんでした", "error"); return; }
-  routes.push(...newRoutes);
-  save(); ta.value = ""; render();
-  showToast(newRoutes.length + "件の便を追加しました");
-}
-
-function addDriver() {
-  const inp = document.getElementById("driverInput");
-  const name = inp.value.trim();
-  if (!name) return;
-  if (drivers.some(d => d.name === name)) { showToast("同じ名前のドライバーがいます", "error"); return; }
-  drivers.push({ id: genId(), name, color: DRIVER_COLORS[drivers.length % DRIVER_COLORS.length] });
-  save(); inp.value = ""; render();
-  showToast(name + "を追加しました");
-}
-
-function removeDriver(id) {
-  routes.forEach(r => { if (r.driverId === id) r.driverId = null; });
-  drivers = drivers.filter(d => d.id !== id);
-  save(); render();
-}
-
-function assignRoute(routeId, driverId) {
-  const r = routes.find(r => r.id === routeId);
-  if (r) r.driverId = driverId;
-  save(); render();
-}
-
-function unassignRoute(routeId) {
-  const r = routes.find(r => r.id === routeId);
-  if (r) r.driverId = null;
-  save(); render();
-}
-
-function removeRoute(routeId) {
-  routes = routes.filter(r => r.id !== routeId);
-  selectedRoutes.delete(routeId);
-  save(); render();
-}
-
-function toggleSelect(routeId) {
-  if (selectedRoutes.has(routeId)) selectedRoutes.delete(routeId);
-  else selectedRoutes.add(routeId);
+// Actions
+function addRouteFromForm(){
+  const destEl=document.getElementById("destInput");
+  const dest=destEl.value.trim();
+  if(!dest){showToast("行き先を入力してください","error");return}
+  const cargo=cargoItems.map(c=>c.type+c.num).join(".");
+  if(!cargo){showToast("荷物を設定してください","error");return}
+  routes.push({id:genId(),tripNum,destination:dest,cargo,area:currentArea,driverId:null});
+  saveDest(currentArea,dest);
+  save();destEl.value="";
+  hideSuggestions();
+  showToast(tripNum+"便 "+dest+" "+cargo+" を追加");
   render();
 }
 
-function assignSelected(driverId) {
-  for (const id of selectedRoutes) {
-    const r = routes.find(r => r.id === id);
-    if (r) r.driverId = driverId;
-  }
-  selectedRoutes.clear();
-  save(); render();
-  showToast("割り当てました");
+function addBulkRoutes(){
+  const ta=document.getElementById("bulkInput");
+  const text=ta.value.trim();if(!text)return;
+  const nr=parseDispatchText(text);
+  if(nr.length===0){showToast("便データを読み取れませんでした","error");return}
+  routes.push(...nr);
+  nr.forEach(r=>saveDest(r.area,r.destination));
+  save();ta.value="";render();
+  showToast(nr.length+"件の便を追加しました");
 }
 
-function toggleInput() { showInput = !showInput; render(); }
-
-function copyResult() {
-  const parts = [];
-  for (const d of drivers) {
-    const dr = routes.filter(r => r.driverId === d.id);
-    if (dr.length === 0) continue;
-    const lines = dr.map(r => r.tripNum + "便 " + r.destination + " " + r.cargo).join("\n");
-    parts.push(lines + "\n" + d.name);
-  }
-  const unassigned = routes.filter(r => !r.driverId);
-  let text = parts.join("\n\n");
-  if (unassigned.length > 0) {
-    text += "\n\n【未割り当て】\n" + unassigned.map(r => r.tripNum + "便 " + r.destination + " " + r.cargo).join("\n");
-  }
-  if (!text) { showToast("コピーするデータがありません", "error"); return; }
-  navigator.clipboard.writeText(text).then(() => showToast("コピーしました"));
+function removeRoute(id){routes=routes.filter(r=>r.id!==id);selectedRoutes.delete(id);save();render()}
+function toggleSelect(id){if(selectedRoutes.has(id))selectedRoutes.delete(id);else selectedRoutes.add(id);render()}
+function selectAll(){
+  const areaRoutes=routes.filter(r=>r.area===currentArea&&!r.driverId);
+  if(areaRoutes.every(r=>selectedRoutes.has(r.id))){selectedRoutes.clear()}
+  else{areaRoutes.forEach(r=>selectedRoutes.add(r.id))}
+  render();
 }
 
-function clearAll() {
-  if (!confirm("全データをクリアしますか？")) return;
-  routes = []; drivers = []; selectedRoutes.clear();
-  save(); render();
-  showToast("クリアしました");
+function assignToDriver(driverId){
+  if(selectedRoutes.size===0){showToast("便を選択してください","error");return}
+  for(const id of selectedRoutes){const r=routes.find(r=>r.id===id);if(r)r.driverId=driverId}
+  const d=drivers.find(d=>d.id===driverId);
+  showToast(d.name+"に"+selectedRoutes.size+"件割り当て");
+  selectedRoutes.clear();save();render();
+}
+function unassignRoute(id){const r=routes.find(r=>r.id===id);if(r)r.driverId=null;save();render()}
+
+function clearAll(){
+  if(!confirm("この日の全データをクリアしますか？"))return;
+  routes=[];selectedRoutes.clear();save();render();showToast("クリアしました");
 }
 
-// ===== Drag & Drop =====
-function onDragStart(e, routeId) { dragRouteId = routeId; e.dataTransfer.effectAllowed = "move"; }
-function onDriverDragOver(e) { e.preventDefault(); e.currentTarget.classList.add("drag-over"); }
-function onDriverDragLeave(e) { e.currentTarget.classList.remove("drag-over"); }
-function onDriverDrop(e, driverId) {
-  e.preventDefault(); e.currentTarget.classList.remove("drag-over");
-  if (dragRouteId) { assignRoute(dragRouteId, driverId); dragRouteId = null; }
+function copyResult(){
+  const parts=[];
+  for(const d of drivers){
+    const dr=routes.filter(r=>r.driverId===d.id);if(dr.length===0)continue;
+    parts.push(dr.map(r=>r.tripNum+"便 "+r.destination+" "+r.cargo).join("\n")+"\n"+d.name);
+  }
+  const un=routes.filter(r=>!r.driverId);
+  let text=parts.join("\n\n");
+  if(un.length>0)text+="\n\n【未割り当て】\n"+un.map(r=>r.tripNum+"便 "+r.destination+" "+r.cargo).join("\n");
+  if(!text){showToast("コピーするデータがありません","error");return}
+  navigator.clipboard.writeText(text).then(()=>showToast("コピーしました"));
 }
 
-// ===== Render =====
-function render() {
-  const app = document.getElementById("app");
-  const unassigned = routes.filter(r => !r.driverId);
-  let html = "";
+// Cargo UI
+function setCargoType(idx,type){cargoItems[idx].type=type;renderForm()}
+function setCargoNum(idx,num){cargoItems[idx].num=Math.max(1,parseInt(num)||1);renderForm()}
+function addCargoItem(){cargoItems.push({type:"n",num:1});renderForm()}
+function removeCargoItem(idx){if(cargoItems.length>1){cargoItems.splice(idx,1);renderForm()}}
+function setTripNum(n){tripNum=n;renderForm()}
 
-  // 便データ入力
-  html += '<div class="card">';
-  html += '<div class="flex items-center justify-between" style="margin-bottom:' + (showInput ? '12px' : '0') + '">';
-  html += '<h2 style="margin:0">便データ入力</h2>';
-  html += '<button class="btn btn-ghost btn-sm" onclick="toggleInput()">' + (showInput ? '閉じる' : '開く') + '</button>';
-  html += '</div>';
-  if (showInput) {
-    html += '<textarea id="routeInput" placeholder="例:\n明日の四日市\n1便 四日市アマがスカ r1\n3便 四日市大谷地 rf1\n6便 四日市 r2"></textarea>';
-    html += '<button class="btn btn-primary btn-block mt-8" onclick="addRoutes()">追加</button>';
+// Suggestions
+function showSuggestions(){
+  const inp=document.getElementById("destInput");
+  const val=inp.value.trim().toLowerCase();
+  const all=getSavedDests(currentArea);
+  const filtered=val?all.filter(d=>d.toLowerCase().includes(val)):all.slice(0,8);
+  const wrap=document.getElementById("destSuggestions");
+  if(filtered.length===0){wrap.style.display="none";return}
+  wrap.style.display="block";
+  wrap.innerHTML=filtered.map(d=>'<div class="dest-suggest-item" onmousedown="pickDest(\''+esc(d).replace(/'/g,"\\'")+'\')">'+esc(d)+'</div>').join("");
+}
+function hideSuggestions(){setTimeout(()=>{const w=document.getElementById("destSuggestions");if(w)w.style.display="none"},200)}
+function pickDest(d){document.getElementById("destInput").value=d;hideSuggestions()}
+
+// Area tabs
+function setArea(a){currentArea=a;selectedRoutes.clear();render()}
+
+function renderAreaTabs(){
+  const el=document.getElementById("areaTabs");
+  el.innerHTML=AREAS.map(a=>{
+    const cnt=routes.filter(r=>r.area===a).length;
+    return '<button class="area-tab'+(a===currentArea?' active':'')+'" onclick="setArea(\''+a+'\')">'+esc(a)+'<span class="cnt">'+(cnt>0?cnt:"")+'</span></button>';
+  }).join("");
+}
+
+// Driver bar
+function renderDriverBar(){
+  const el=document.getElementById("driverBar");
+  el.innerHTML=drivers.map(d=>{
+    const cnt=routes.filter(r=>r.driverId===d.id).length;
+    return '<button class="driver-bar-btn" style="background:'+d.color+'22;border-color:'+d.color+';color:'+d.color+'" onclick="assignToDriver(\''+d.id+'\')">'+esc(d.name)+'<span class="cnt">'+(cnt>0?"("+cnt+")":"")+'</span></button>';
+  }).join("")+'<button class="driver-bar-btn" style="background:var(--input-bg);border-color:var(--input-border);color:var(--text-sub)" onclick="showAddDriver()">+</button>';
+}
+
+function showAddDriver(){
+  const name=prompt("ドライバー名を入力");
+  if(!name||!name.trim())return;
+  const n=name.trim();
+  if(drivers.some(d=>d.name===n)){showToast("既に存在します","error");return}
+  drivers.push({id:genId(),name:n,color:DRIVER_COLORS[drivers.length%DRIVER_COLORS.length]});
+  save();render();showToast(n+"を追加");
+}
+
+// Selection info
+function renderSelectionInfo(){
+  const el=document.getElementById("selectionInfo");
+  if(selectedRoutes.size>0){el.textContent=selectedRoutes.size+"件選択中 → 下のドライバーをタップ";el.style.display="block"}
+  else{el.style.display="none"}
+}
+
+// Form
+function renderForm(){
+  const el=document.getElementById("formArea");
+  if(!el)return;
+  let html='<div class="card">';
+  html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+  html+='<h2 style="margin:0">便を追加</h2>';
+  html+='<button class="btn btn-ghost btn-sm" onclick="toggleBulk()">'+(showBulk?'フォーム入力':'まとめて入力')+'</button>';
+  html+='</div>';
+
+  if(showBulk){
+    html+='<textarea id="bulkInput" placeholder="例:\n1便 四日市アマがスカ r1\n3便 四日市大谷地 rf1"></textarea>';
+    html+='<button class="btn btn-primary btn-block" style="margin-top:8px" onclick="addBulkRoutes()">追加</button>';
+  }else{
+    // Trip number
+    html+='<div style="font-size:12px;color:var(--text-sub);margin-bottom:4px">便番号</div>';
+    html+='<div class="trip-btns">';
+    for(let i=1;i<=8;i++){html+='<div class="trip-btn'+(tripNum===i?' active':'')+'" onclick="setTripNum('+i+')">'+i+'</div>'}
+    html+='</div>';
+    // Destination
+    html+='<div style="font-size:12px;color:var(--text-sub);margin-bottom:4px">行き先</div>';
+    html+='<div class="dest-input-wrap"><input id="destInput" class="input" placeholder="例: 四日市アマがスカ" oninput="showSuggestions()" onfocus="showSuggestions()" onblur="hideSuggestions()" autocomplete="off"><div id="destSuggestions" class="dest-suggestions" style="display:none"></div></div>';
+    // Cargo
+    html+='<div style="font-size:12px;color:var(--text-sub);margin-bottom:4px">荷物</div>';
+    html+='<div class="cargo-section">';
+    cargoItems.forEach((c,i)=>{
+      html+='<div class="cargo-row">';
+      ["r","n","rf"].forEach(t=>{html+='<div class="cargo-type-btn'+(c.type===t?' active':'')+'" onclick="setCargoType('+i+',\''+t+'\')">'+t+'</div>'});
+      html+='<input class="cargo-num" type="number" min="1" value="'+c.num+'" onchange="setCargoNum('+i+',this.value)">';
+      if(i>0)html+='<button class="cargo-remove-btn" onclick="removeCargoItem('+i+')">×</button>';
+      if(i===cargoItems.length-1)html+='<button class="cargo-add-btn" onclick="addCargoItem()">+</button>';
+      html+='</div>';
+    });
+    html+='</div>';
+    // Preview & Add
+    html+='<div style="font-size:12px;color:var(--text-sub);margin-bottom:6px">追加内容: <span style="color:var(--accent);font-weight:700">'+tripNum+'便 ... '+cargoItems.map(c=>c.type+c.num).join(".")+'</span></div>';
+    html+='<button class="btn btn-primary btn-block" style="padding:14px;font-size:16px" onclick="addRouteFromForm()">追加</button>';
   }
-  html += '</div>';
+  html+='</div>';
+  el.innerHTML=html;
+}
+function toggleBulk(){showBulk=!showBulk;renderForm()}
 
-  // ドライバー管理
-  html += '<div class="card">';
-  html += '<h2>ドライバー</h2>';
-  html += '<div class="flex gap-8 mb-12">';
-  html += '<input id="driverInput" class="input" placeholder="名前を入力" onkeydown="if(event.key===\'Enter\')addDriver()" style="flex:1">';
-  html += '<button class="btn btn-primary" onclick="addDriver()">追加</button>';
-  html += '</div>';
-  html += '<div class="flex flex-wrap gap-8">';
-  for (const d of drivers) {
-    const cnt = routes.filter(r => r.driverId === d.id).length;
-    html += '<div class="driver-tag" style="background:' + d.color + '22;border:1px solid ' + d.color + '66">';
-    html += '<span style="color:' + d.color + '">' + esc(d.name) + '</span>';
-    html += '<span class="count">(' + cnt + '件)</span>';
-    html += '<button class="remove" onclick="removeDriver(\'' + d.id + '\')">×</button>';
-    html += '</div>';
+// Main render
+function render(){
+  renderAreaTabs();
+  renderDriverBar();
+  renderSelectionInfo();
+
+  const app=document.getElementById("app");
+  const areaRoutes=routes.filter(r=>r.area===currentArea);
+  const unassigned=areaRoutes.filter(r=>!r.driverId);
+  const assigned=areaRoutes.filter(r=>r.driverId);
+  let html='<div id="formArea"></div>';
+
+  // Unassigned
+  if(unassigned.length>0){
+    html+='<div class="card">';
+    html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
+    html+='<h2 style="margin:0">未割り当て ('+unassigned.length+'件)</h2>';
+    html+='<button class="btn btn-ghost btn-sm" onclick="selectAll()">'+(unassigned.every(r=>selectedRoutes.has(r.id))?'選択解除':'全選択')+'</button>';
+    html+='</div>';
+    unassigned.forEach(r=>{
+      const sel=selectedRoutes.has(r.id);
+      html+='<div class="route-item'+(sel?' selected':'')+'" onclick="toggleSelect(\''+r.id+'\')">';
+      html+='<span class="trip-num">'+r.tripNum+'便</span>';
+      html+='<span class="dest">'+esc(r.destination)+'</span>';
+      html+='<span class="cargo">'+esc(r.cargo)+'</span>';
+      html+='<button class="remove-btn" onclick="event.stopPropagation();removeRoute(\''+r.id+'\')">×</button>';
+      html+='</div>';
+    });
+    html+='</div>';
   }
-  html += '</div></div>';
 
-  // 未割り当て
-  if (unassigned.length > 0) {
-    html += '<div class="card">';
-    html += '<div class="flex items-center justify-between mb-12">';
-    html += '<h2 style="margin:0">未割り当て (' + unassigned.length + '件)</h2>';
-    if (selectedRoutes.size > 0) {
-      html += '<div class="assign-bar">';
-      html += '<span class="label">' + selectedRoutes.size + '件選択中 →</span>';
-      for (const d of drivers) {
-        html += '<button style="background:' + d.color + '33;border-color:' + d.color + ';color:' + d.color + '" onclick="assignSelected(\'' + d.id + '\')">' + esc(d.name) + '</button>';
-      }
-      html += '</div>';
+  // Assigned by driver
+  const driversWithRoutes=drivers.filter(d=>areaRoutes.some(r=>r.driverId===d.id));
+  if(driversWithRoutes.length>0){
+    html+='<div class="card"><h2>割り当て済み</h2>';
+    driversWithRoutes.forEach(d=>{
+      const dr=areaRoutes.filter(r=>r.driverId===d.id);
+      html+='<div style="margin-bottom:12px">';
+      html+='<div style="font-weight:700;color:'+d.color+';margin-bottom:4px;font-size:14px">'+esc(d.name)+' ('+dr.length+'件)</div>';
+      dr.forEach(r=>{
+        html+='<div class="route-item" style="cursor:default">';
+        html+='<span class="trip-num">'+r.tripNum+'便</span>';
+        html+='<span class="dest">'+esc(r.destination)+'</span>';
+        html+='<span class="cargo">'+esc(r.cargo)+'</span>';
+        html+='<button class="unassign-btn" onclick="unassignRoute(\''+r.id+'\')">戻す</button>';
+        html+='<button class="remove-btn" onclick="removeRoute(\''+r.id+'\')">×</button>';
+        html+='</div>';
+      });
+      html+='</div>';
+    });
+    html+='</div>';
+  }
+
+  // Preview
+  const allAssigned=routes.filter(r=>r.driverId);
+  if(allAssigned.length>0){
+    html+='<div class="card"><h2>配車結果プレビュー（全エリア）</h2><div class="preview">';
+    drivers.forEach(d=>{
+      const dr=routes.filter(r=>r.driverId===d.id);if(dr.length===0)return;
+      dr.forEach(r=>{html+=esc(r.tripNum+"便 "+r.destination+" "+r.cargo)+"\n"});
+      html+='<span style="color:'+d.color+';font-weight:700">'+esc(d.name)+'</span>\n\n';
+    });
+    const un=routes.filter(r=>!r.driverId);
+    if(un.length>0){
+      html+='<span style="color:var(--warn-text);font-weight:700">【未割り当て】</span>\n';
+      un.forEach(r=>{html+=esc(r.tripNum+"便 "+r.destination+" "+r.cargo)+"\n"});
     }
-    html += '</div>';
-    const groups = {};
-    for (const r of unassigned) { const a = r.area || "その他"; if (!groups[a]) groups[a] = []; groups[a].push(r); }
-    for (const [area, aRoutes] of Object.entries(groups)) {
-      html += '<div class="area-header">' + esc(area) + '</div>';
-      for (const r of aRoutes) { html += renderRouteItem(r, false); }
-    }
-    html += '</div>';
+    html+='</div></div>';
   }
 
-  // ドライバー別
-  for (const d of drivers) {
-    const dRoutes = routes.filter(r => r.driverId === d.id);
-    html += '<div class="card driver-section" style="border-color:' + d.color + '44" ondragover="onDriverDragOver(event)" ondragleave="onDriverDragLeave(event)" ondrop="onDriverDrop(event,\'' + d.id + '\')">';
-    html += '<div class="flex items-center justify-between" style="margin-bottom:' + (dRoutes.length > 0 ? '10' : '0') + 'px">';
-    html += '<h2 style="margin:0;color:' + d.color + '">' + esc(d.name) + '<span class="count">' + dRoutes.length + '件</span></h2>';
-    html += '</div>';
-    if (dRoutes.length === 0) { html += '<div class="empty-hint">ここに便をドラッグまたはタップで割り当て</div>'; }
-    for (const r of dRoutes) { html += renderRouteItem(r, true); }
-    html += '</div>';
-  }
-
-  // プレビュー
-  if (routes.length > 0 && drivers.some(d => routes.some(r => r.driverId === d.id))) {
-    html += '<div class="card">';
-    html += '<h2>配車結果プレビュー</h2>';
-    html += '<div class="preview">';
-    for (const d of drivers) {
-      const dRoutes = routes.filter(r => r.driverId === d.id);
-      if (dRoutes.length === 0) continue;
-      for (const r of dRoutes) { html += esc(r.tripNum + "便 " + r.destination + " " + r.cargo) + "\n"; }
-      html += '<span class="driver-name" style="color:' + d.color + '">' + esc(d.name) + '</span>\n\n';
-    }
-    if (unassigned.length > 0) {
-      html += '<span class="warn">【未割り当て】</span>\n';
-      for (const r of unassigned) { html += esc(r.tripNum + "便 " + r.destination + " " + r.cargo) + "\n"; }
-    }
-    html += '</div></div>';
-  }
-
-  app.innerHTML = html;
+  app.innerHTML=html;
+  renderForm();
 }
 
-function renderRouteItem(r, assigned) {
-  const sel = selectedRoutes.has(r.id);
-  let html = '<div class="route-item' + (sel ? ' selected' : '') + '" draggable="true" ondragstart="onDragStart(event,\'' + r.id + '\')">';
-  if (!assigned) {
-    html += '<input type="checkbox" ' + (sel ? 'checked' : '') + ' onchange="toggleSelect(\'' + r.id + '\')" style="accent-color:var(--accent);cursor:pointer">';
-  }
-  html += '<span class="flex-1"><span class="trip-num">' + r.tripNum + '便</span> ';
-  html += '<span class="dest">' + esc(r.destination) + '</span> ';
-  html += '<span class="cargo">' + esc(r.cargo) + '</span></span>';
-  if (!assigned && drivers.length > 0) {
-    html += '<div style="position:relative;display:inline-block">';
-    html += '<button class="assign-btn" onclick="toggleDropdown(this)">割当</button>';
-    html += '<div class="dropdown" style="display:none">';
-    for (const d of drivers) {
-      html += '<button style="color:' + d.color + '" onmouseover="this.style.background=\'' + d.color + '22\'" onmouseout="this.style.background=\'none\'" onclick="assignRoute(\'' + r.id + '\',\'' + d.id + '\')">' + esc(d.name) + '</button>';
-    }
-    html += '</div></div>';
-  }
-  if (assigned) { html += '<button class="assign-btn" onclick="unassignRoute(\'' + r.id + '\')">戻す</button>'; }
-  html += '<button class="remove-btn" onclick="removeRoute(\'' + r.id + '\')">×</button>';
-  html += '</div>';
-  return html;
-}
-
-function toggleDropdown(btn) {
-  document.querySelectorAll(".dropdown").forEach(d => { d.style.display = "none"; });
-  const dd = btn.nextElementSibling;
-  dd.style.display = dd.style.display === "none" ? "block" : "none";
-}
-
-document.addEventListener("click", function(e) {
-  if (!e.target.classList.contains("assign-btn")) {
-    document.querySelectorAll(".dropdown").forEach(d => { d.style.display = "none"; });
-  }
-});
-
-function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
-
-// ===== Init =====
-(function init() {
-  // ルーム決定
-  currentRoom = getRoomFromHash() || getTomorrowStr();
-  document.getElementById("roomDate").value = currentRoom;
-  location.hash = "room=" + currentRoom;
-
-  // Firebase直接接続
-  if (initFirebase(FIREBASE_CONFIG)) {
-    subscribeRoom(currentRoom);
-  } else {
-    setSyncStatus("disconnected");
-    subscribeRoom(currentRoom);
-  }
+// Init
+(function init(){
+  currentRoom=getRoomFromHash()||getTomorrowStr();
+  document.getElementById("roomDate").value=currentRoom;
+  location.hash="room="+currentRoom;
+  if(initFirebase(FIREBASE_CONFIG)){subscribeRoom(currentRoom)}
+  else{setSyncStatus("disconnected");subscribeRoom(currentRoom)}
 })();
-
-// ハッシュ変更時
-window.addEventListener("hashchange", () => {
-  const room = getRoomFromHash();
-  if (room && room !== currentRoom) switchRoom(room);
-});
+window.addEventListener("hashchange",()=>{const r=getRoomFromHash();if(r&&r!==currentRoom)switchRoom(r)});
 </script>
 </body>
 </html>
