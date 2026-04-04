@@ -108,6 +108,14 @@ const defaultCenter = () => ({
   ),
 });
 
+const defaultCorrections = () => ({
+  count: "",
+  originAmount: "",
+  additions: Object.fromEntries(
+    addItems.map((i) => [i.key, { count: "", amount: "" }])
+  ),
+});
+
 const defaultForm = {
   date: (() => {
     const d = new Date();
@@ -124,6 +132,10 @@ const defaultForm = {
   traineeAmount: "",
   // ③ 日延べ
   hinobe: [],
+  // 訂正モード
+  correctionMode: false,
+  correctionReason: "",
+  corrections: [defaultCorrections()],
 };
 
 async function copyToClipboard(text) {
@@ -251,8 +263,100 @@ export default function App() {
     }).filter(Boolean);
   }, [form.hinobe]);
 
+  // 訂正モード用ヘルパー: 旧値があれば「旧→新」形式にする
+  const correctionArrow = (oldVal, newVal) => {
+    if (oldVal !== undefined && oldVal !== "" && String(oldVal) !== String(newVal)) {
+      return `${oldVal}→${newVal}`;
+    }
+    return String(newVal);
+  };
+
   const generateText = useCallback(() => {
     const lines = [];
+
+    // 訂正モード
+    if (form.correctionMode) {
+      lines.push(`${settings.name}分`);
+      if (form.correctionReason) lines.push(form.correctionReason);
+      lines.push("");
+      lines.push(settings.name);
+      lines.push(form.date);
+
+      const centers = form.centers || [];
+      centers.forEach((center, ci) => {
+        const corr = (form.corrections || [])[ci] || defaultCorrections();
+        if (ci > 0) lines.push("");
+
+        // センターから件数・金額
+        const countStr = correctionArrow(corr.count, center.count);
+        const amountStr = correctionArrow(
+          corr.originAmount ? formatNum(corr.originAmount).toLocaleString() + "円" : "",
+          formatNum(center.originAmount).toLocaleString() + "円"
+        );
+        lines.push(`${center.origin}から${countStr}件${corr.originAmount ? amountStr : formatNum(center.originAmount).toLocaleString() + "円"}`);
+
+        // 追加
+        const addLines = [];
+        addItems.forEach((item) => {
+          const a = center.additions[item.key];
+          const ca = corr.additions?.[item.key] || {};
+          if (!a.enabled && !ca.amount) return;
+          if (!a.enabled && ca.amount) return; // was enabled before but not now - skip
+          const amt = formatNum(a.amount);
+          if (amt === 0 && !ca.amount) return;
+
+          let line = item.label;
+          if (item.hasCount) {
+            line += correctionArrow(ca.count, a.count || "0") + "台";
+          }
+          if (a.detail && a.detail.trim()) line += `(${a.detail.trim()})`;
+          const oldAmt = ca.amount ? formatNum(ca.amount).toLocaleString() + "円" : "";
+          const newAmt = formatNum(a.amount).toLocaleString() + "円";
+          line += "　" + correctionArrow(oldAmt, newAmt);
+          addLines.push(line);
+        });
+        if (addLines.length > 0) {
+          lines.push("追加");
+          addLines.forEach(l => lines.push(l));
+        }
+
+        // 合計
+        const centerTotal = calcCenterTotal(center);
+        const oldTotal = (() => {
+          let t = corr.originAmount ? formatNum(corr.originAmount) : formatNum(center.originAmount);
+          addItems.forEach(item => {
+            const a = center.additions[item.key];
+            const ca = corr.additions?.[item.key] || {};
+            if (a.enabled && ca.amount) t += formatNum(ca.amount);
+            else if (a.enabled) t += formatNum(a.amount);
+          });
+          return t;
+        })();
+        if (oldTotal !== centerTotal) {
+          lines.push(`\n合計${oldTotal.toLocaleString()}円→${centerTotal.toLocaleString()}円`);
+        } else {
+          lines.push(`\n合計${centerTotal.toLocaleString()}円`);
+        }
+      });
+
+      // マン数
+      if (form.manCount >= 2) {
+        const namesParts = form.partnerNames.map((n, i) => {
+          if (!n.trim()) return "";
+          return (form.partnerIsTrainee || [])[i] ? `${n}(研修)` : n;
+        }).filter(Boolean);
+        if (namesParts.length > 0) {
+          lines.push(`${namesParts.join("・")}と${form.manCount}マンです`);
+        } else {
+          lines.push(`${form.manCount}マンです`);
+        }
+      } else {
+        lines.push("ワンマンです");
+      }
+
+      return lines.join("\n");
+    }
+
     lines.push(settings.name);
     lines.push(form.date);
 
@@ -490,6 +594,44 @@ export default function App() {
     if (selectedHistory?.id === id) setSelectedHistory(null);
   };
 
+  const startCorrectionFromHistory = (entry) => {
+    const snap = { ...entry.formSnapshot };
+    // 旧形式→新形式に変換
+    if (!snap.centers && snap.origin !== undefined) {
+      snap.centers = [{
+        origin: snap.origin || "",
+        count: snap.count || "",
+        originAmount: snap.originAmount || "",
+        originCounts: snap.originCounts || { naiki: "", gaiki: "", robo: "", rf: "", sonota: "" },
+        additions: snap.additions || Object.fromEntries(addItems.map((i) => [i.key, { count: "", amount: "", enabled: false, detail: null }])),
+      }];
+      if (!snap.kokinCount) snap.kokinCount = "";
+      if (!snap.kokinAmount) snap.kokinAmount = "";
+      delete snap.origin; delete snap.count; delete snap.originAmount;
+      delete snap.originCounts; delete snap.additions;
+    }
+    // 現在の値を旧値（corrections）にセット
+    const corrections = (snap.centers || []).map(center => {
+      const corr = defaultCorrections();
+      corr.count = center.count || "";
+      corr.originAmount = center.originAmount || "";
+      addItems.forEach(item => {
+        const a = center.additions?.[item.key];
+        if (a?.enabled) {
+          corr.additions[item.key] = { count: a.count || "", amount: a.amount || "" };
+        }
+      });
+      return corr;
+    });
+    snap.correctionMode = true;
+    snap.correctionReason = "";
+    snap.corrections = corrections;
+    setForm(snap);
+    setPartnerInputModes(Array(Math.max(0, (snap.manCount || 1) - 1)).fill("select"));
+    setSelectedHistory(null);
+    setTab("form");
+  };
+
   const restoreFromHistory = (entry) => {
     const snap = { ...entry.formSnapshot };
     if (snap.manType !== undefined && snap.manCount === undefined) {
@@ -666,7 +808,31 @@ export default function App() {
   };
 
   const addCenter = () => {
-    setForm((f) => ({ ...f, centers: [...f.centers, defaultCenter()] }));
+    setForm((f) => ({ ...f, centers: [...f.centers, defaultCenter()], corrections: [...(f.corrections || []), defaultCorrections()] }));
+  };
+
+  const updateCorrection = (ci, field, value) => {
+    setForm((f) => {
+      const corrections = [...(f.corrections || [])];
+      while (corrections.length <= ci) corrections.push(defaultCorrections());
+      corrections[ci] = { ...corrections[ci], [field]: value };
+      return { ...f, corrections };
+    });
+  };
+
+  const updateCorrectionAddition = (ci, key, field, value) => {
+    setForm((f) => {
+      const corrections = [...(f.corrections || [])];
+      while (corrections.length <= ci) corrections.push(defaultCorrections());
+      corrections[ci] = {
+        ...corrections[ci],
+        additions: {
+          ...corrections[ci].additions,
+          [key]: { ...corrections[ci].additions[key], [field]: value },
+        },
+      };
+      return { ...f, corrections };
+    });
   };
 
   const removeCenter = (ci) => {
@@ -965,6 +1131,52 @@ function res(obj) {
               />
             </div>
 
+            {/* 訂正モード */}
+            {!form.traineeMode && (
+              <div style={{
+                background: t.card,
+                borderRadius: 12,
+                padding: "14px 16px",
+                border: `1px solid ${form.correctionMode ? "#f59e0b" : t.cardBorder}`,
+                display: "flex",
+                flexDirection: "column",
+                gap: form.correctionMode ? 10 : 0,
+              }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: form.correctionMode ? "#f59e0b" : t.textSub }}>
+                      訂正モード
+                    </div>
+                    <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>
+                      過去の報告を訂正する場合にON
+                    </div>
+                  </div>
+                  <Toggle
+                    active={form.correctionMode}
+                    onClick={() => setForm((f) => {
+                      const next = !f.correctionMode;
+                      return { ...f, correctionMode: next, correctionReason: "", corrections: f.centers.map(() => defaultCorrections()) };
+                    })}
+                    t={t}
+                  />
+                </div>
+                {form.correctionMode && (
+                  <textarea
+                    value={form.correctionReason}
+                    onChange={(e) => setForm(f => ({ ...f, correctionReason: e.target.value }))}
+                    placeholder="訂正理由を入力（例：その他金額、訪問料を頂きましたので訂正をお願いいたします。）"
+                    rows={2}
+                    style={{
+                      width: "100%", background: t.input, border: `1px solid ${t.inputBorder}`,
+                      borderRadius: 8, color: t.text, padding: "8px 12px",
+                      fontSize: 13, outline: "none", resize: "vertical", boxSizing: "border-box",
+                      fontFamily: "inherit",
+                    }}
+                  />
+                )}
+              </div>
+            )}
+
             {/* 基本情報 */}
             <Section title="基本情報" t={t}>
               <Row label="名前" t={t}>
@@ -1058,20 +1270,42 @@ function res(obj) {
                     />
                   </Row>
                   <Row label={<>件数<Req /></>} t={t}>
-                    <Input
-                      value={center.count}
-                      onChange={(v) => updateCenter(ci, "count", v)}
-                      type="number"
-                      suffix="件"
-                      t={t}
-                    />
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
+                      {form.correctionMode && (
+                        <Input
+                          value={(form.corrections || [])[ci]?.count || ""}
+                          onChange={(v) => updateCorrection(ci, "count", v)}
+                          type="number"
+                          suffix="件(旧)"
+                          t={t}
+                        />
+                      )}
+                      <Input
+                        value={center.count}
+                        onChange={(v) => updateCenter(ci, "count", v)}
+                        type="number"
+                        suffix={form.correctionMode ? "件(新)" : "件"}
+                        t={t}
+                      />
+                    </div>
                   </Row>
                   <Row label={<>金額<Req /></>} t={t}>
-                    <MoneyInput
-                      value={center.originAmount}
-                      onChange={(v) => updateCenter(ci, "originAmount", v)}
-                      t={t}
-                    />
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
+                      {form.correctionMode && (
+                        <MoneyInput
+                          value={(form.corrections || [])[ci]?.originAmount || ""}
+                          onChange={(v) => updateCorrection(ci, "originAmount", v)}
+                          suffix="(旧)"
+                          t={t}
+                        />
+                      )}
+                      <MoneyInput
+                        value={center.originAmount}
+                        onChange={(v) => updateCenter(ci, "originAmount", v)}
+                        suffix={form.correctionMode ? "(新)" : undefined}
+                        t={t}
+                      />
+                    </div>
                   </Row>
                   {/* ② 元請台数（任意） */}
                   <div style={{ marginTop: 8, borderTop: `1px solid ${t.cardBorder}`, paddingTop: 10 }}>
@@ -1119,17 +1353,32 @@ function res(obj) {
                         </div>
                         {a.enabled && (
                           <div style={{ paddingLeft: 46, display: "flex", flexDirection: "column", gap: 6 }}>
+                            {form.correctionMode && (() => {
+                              const ca = (form.corrections || [])[ci]?.additions?.[item.key] || {};
+                              return (
+                                <div style={{ display: "flex", gap: 8, alignItems: "center", opacity: 0.7 }}>
+                                  {item.hasCount && (
+                                    <div style={{ flex: "0 0 80px" }}>
+                                      <Input value={ca.count || ""} onChange={(v) => updateCorrectionAddition(ci, item.key, "count", v)} type="number" suffix="台(旧)" t={t} />
+                                    </div>
+                                  )}
+                                  <div style={{ flex: 1 }}>
+                                    <MoneyInput value={ca.amount || ""} onChange={(v) => updateCorrectionAddition(ci, item.key, "amount", v)} suffix="(旧)" t={t} />
+                                  </div>
+                                </div>
+                              );
+                            })()}
                             {item.hasCount ? (
                               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                                 <div style={{ flex: "0 0 80px" }}>
-                                  <Input value={a.count} onChange={(v) => updateCenterAddition(ci, item.key, "count", v)} type="number" suffix="台" t={t} />
+                                  <Input value={a.count} onChange={(v) => updateCenterAddition(ci, item.key, "count", v)} type="number" suffix={form.correctionMode ? "台(新)" : "台"} t={t} />
                                 </div>
                                 <div style={{ flex: 1 }}>
-                                  <MoneyInput value={a.amount} onChange={(v) => updateCenterAddition(ci, item.key, "amount", v)} t={t} />
+                                  <MoneyInput value={a.amount} onChange={(v) => updateCenterAddition(ci, item.key, "amount", v)} suffix={form.correctionMode ? "(新)" : undefined} t={t} />
                                 </div>
                               </div>
                             ) : (
-                              <MoneyInput value={a.amount} onChange={(v) => updateCenterAddition(ci, item.key, "amount", v)} t={t} />
+                              <MoneyInput value={a.amount} onChange={(v) => updateCenterAddition(ci, item.key, "amount", v)} suffix={form.correctionMode ? "(新)" : undefined} t={t} />
                             )}
                             {a.detail !== null && a.detail !== undefined ? (
                               <input
@@ -1729,6 +1978,18 @@ function res(obj) {
                 </button>
 
                 <button
+                  onClick={() => startCorrectionFromHistory(selectedHistory)}
+                  style={{
+                    width: "100%", padding: "14px 0",
+                    background: t.card, color: "#f59e0b",
+                    border: `2px solid #f59e0b`,
+                    borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: "pointer",
+                  }}
+                >
+                  この内容を訂正する
+                </button>
+
+                <button
                   onClick={() => deleteHistory(selectedHistory.id)}
                   style={{
                     width: "100%", padding: "12px 0",
@@ -2181,7 +2442,7 @@ function AbsenceCopyBtn({ name, date, onAbsence, t }) {
   );
 }
 
-function MoneyInput({ value, onChange, placeholder, t }) {
+function MoneyInput({ value, onChange, placeholder, suffix, t }) {
   const [editing, setEditing] = useState(false);
   // Android対策: type="text"固定 + inputMode="numeric"でテンキー表示
   const rawValue = String(value).replace(/,/g, "").replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).replace(/[^0-9]/g, "");
@@ -2205,7 +2466,7 @@ function MoneyInput({ value, onChange, placeholder, t }) {
           borderRadius: 8, color: t.text, padding: "8px 12px", fontSize: 15, outline: "none", width: "100%",
         }}
       />
-      <span style={{ fontSize: 13, color: t.textMuted, flexShrink: 0 }}>円</span>
+      <span style={{ fontSize: 13, color: t.textMuted, flexShrink: 0 }}>円{suffix || ""}</span>
     </div>
   );
 }
