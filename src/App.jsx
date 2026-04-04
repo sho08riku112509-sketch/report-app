@@ -238,7 +238,10 @@ export default function App() {
     if (form.traineeMode) {
       if (form.traineeName) lines.push(`${form.traineeName}さん研修同行です。`);
       if (form.manCount >= 2) {
-        const names = form.partnerNames.filter(n => n.trim()).join("・");
+        const names = form.partnerNames.map((n, i) => {
+          if (!n.trim()) return "";
+          return (form.partnerIsTrainee || [])[i] ? `${n}(研修)` : n;
+        }).filter(Boolean).join("・");
         if (names) {
           lines.push(`${names}と${form.manCount}マンです`);
         } else {
@@ -295,7 +298,7 @@ export default function App() {
     if (form.manCount >= 2) {
       const namesParts = form.partnerNames.map((n, i) => {
         if (!n.trim()) return "";
-        return n;
+        return (form.partnerIsTrainee || [])[i] ? `${n}(研修)` : n;
       }).filter(Boolean);
       if (namesParts.length > 0) {
         lines.push(`${namesParts.join("・")}と${form.manCount}マンです`);
@@ -1112,7 +1115,7 @@ function res(obj) {
                       <Input
                         value={name}
                         onChange={(v) => updatePartnerName(i, v)}
-                        placeholder="例：佐藤優光"
+                        placeholder="名前を入力"
                         t={t}
                       />
                     )}
