@@ -226,7 +226,7 @@ export default function App() {
   // 研修モード時の自分の日当 = 同行者の売上 × 同行者の% × 25%
   const traineeModeDailyPay = (() => {
     if (!form.traineeMode || !form.traineeAmount || !form.traineeName) return 0;
-    const traineeStaff = settings.staff.find((s) => s.name === form.traineeName.trim());
+    const traineeStaff = settings.staff.find((s) => form.traineeName.trim().startsWith(s.name) || s.name.startsWith(form.traineeName.trim()));
     const traineePercent = traineeStaff?.percent ? parseFloat(traineeStaff.percent) : 0;
     if (!traineePercent) return 0;
     return Math.round(formatNum(form.traineeAmount) * traineePercent / 100 * 0.25);
@@ -874,7 +874,7 @@ function res(obj) {
                     <Input
                       value={form.traineeName}
                       onChange={(v) => setForm((f) => ({ ...f, traineeName: v }))}
-                      placeholder="例：米田有佑"
+                      placeholder="名前を入力"
                       t={t}
                     />
                   </Row>
