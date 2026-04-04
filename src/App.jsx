@@ -454,6 +454,7 @@ export default function App() {
       name: settings.name,
       sheetTab: settings.sheetTab,
       date: form.date,
+      isAbsence,
       traineeMode: form.traineeMode,
       traineeName: form.traineeMode ? form.traineeName : "",
       origin: form.origin,
@@ -611,6 +612,7 @@ var SHEET_ID = 'ここにスプレッドシートIDを貼り付ける';
 
 // ===== 列マッピング設定 =====
 var COL = {
+  result:      4,   // D列: 結果（1=出勤, 0=休み）
   count:       5,   // E列: 件数
   baseAmount:  6,   // F列: 基本売上
   // ② 元請台数（エディオン）
@@ -698,6 +700,7 @@ function doPost(e) {
       sonotaAmt = sonotaAmt - kokinAmt;
     }
 
+    if (COL.result > 0) sheet.getRange(row, COL.result).setValue(d.isAbsence ? 0 : 1);
     if (COL.count > 0) sheet.getRange(row, COL.count).setValue(d.count);
     if (COL.baseAmount > 0) sheet.getRange(row, COL.baseAmount).setValue(d.originAmount);
 
