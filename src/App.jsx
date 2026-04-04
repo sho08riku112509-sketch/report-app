@@ -106,8 +106,6 @@ const defaultCenter = () => ({
   additions: Object.fromEntries(
     addItems.map((i) => [i.key, { count: "", amount: "", enabled: false, detail: null }])
   ),
-  kokinCount: "",
-  kokinAmount: "",
 });
 
 const defaultForm = {
@@ -116,6 +114,8 @@ const defaultForm = {
     return `${d.getMonth() + 1}月${d.getDate()}日`;
   })(),
   centers: [defaultCenter()],
+  kokinCount: "",
+  kokinAmount: "",
   manCount: 1,
   partnerNames: [],
   partnerIsTrainee: [],
@@ -506,16 +506,14 @@ export default function App() {
         originAmount: snap.originAmount || "",
         originCounts: snap.originCounts || { naiki: "", gaiki: "", robo: "", rf: "", sonota: "" },
         additions: snap.additions || Object.fromEntries(addItems.map((i) => [i.key, { count: "", amount: "", enabled: false, detail: null }])),
-        kokinCount: snap.kokinCount || "",
-        kokinAmount: snap.kokinAmount || "",
       }];
+      if (!snap.kokinCount) snap.kokinCount = "";
+      if (!snap.kokinAmount) snap.kokinAmount = "";
       delete snap.origin;
       delete snap.count;
       delete snap.originAmount;
       delete snap.originCounts;
       delete snap.additions;
-      delete snap.kokinCount;
-      delete snap.kokinAmount;
     }
     setForm(snap);
     setPartnerInputModes(Array(Math.max(0, (snap.manCount || 1) - 1)).fill("select"));
@@ -580,8 +578,8 @@ export default function App() {
       rfAmount: (form.centers || []).reduce((s, c) => s + (c.additions.rf.enabled ? formatNum(c.additions.rf.amount) : 0), 0),
       mizuCount: (form.centers || []).reduce((s, c) => s + (c.additions.mizu.enabled ? formatNum(c.additions.mizu.count) : 0), 0),
       mizuAmount: (form.centers || []).reduce((s, c) => s + (c.additions.mizu.enabled ? formatNum(c.additions.mizu.amount) : 0), 0),
-      kokinCount: (form.centers || []).reduce((s, c) => s + formatNum(c.kokinCount), 0),
-      kokinAmount: (form.centers || []).reduce((s, c) => s + formatNum(c.kokinAmount), 0),
+      kokinCount: formatNum(form.kokinCount),
+      kokinAmount: formatNum(form.kokinAmount),
       sonotaAmount: (form.centers || []).reduce((s, c) => s + (c.additions.sonota.enabled ? formatNum(c.additions.sonota.amount) : 0), 0),
       sonotaDetail: (form.centers || []).map(c => c.additions.sonota.enabled ? (c.additions.sonota.detail || "") : "").filter(Boolean).join(" / "),
       inceCount: (form.centers || []).reduce((s, c) => s + (c.additions.ince.enabled ? formatNum(c.additions.ince.count) : 0), 0),
@@ -1165,26 +1163,29 @@ function res(obj) {
                   })}
                 </Section>
 
-                {/* 抗菌（スプレッド転記用） */}
-                <div style={{
-                  background: t.card, borderRadius: 12, padding: "16px",
-                  border: `1px solid ${t.cardBorder}`,
-                }}>
-                  <div style={{ fontSize: 11, color: t.textSub, fontWeight: 700, letterSpacing: 2, marginBottom: 12 }}>
-                    抗菌（スプレッド転記用）{(form.centers || []).length > 1 ? ` - センター${ci + 1}` : ""}
-                  </div>
-                  <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 10, lineHeight: 1.6 }}>
-                    報告文には出ません。スプレッドシートの抗菌列に転記されます。
-                  </div>
-                  <Row label="台数" t={t}>
-                    <Input value={center.kokinCount} onChange={(v) => updateCenter(ci, "kokinCount", v)} type="number" suffix="台" t={t} />
-                  </Row>
-                  <Row label="金額" t={t}>
-                    <MoneyInput value={center.kokinAmount} onChange={(v) => updateCenter(ci, "kokinAmount", v)} t={t} />
-                  </Row>
-                </div>
               </div>
             ))}
+
+            {/* 抗菌（スプレッド転記用） */}
+            {!form.traineeMode && (
+              <div style={{
+                background: t.card, borderRadius: 12, padding: "16px",
+                border: `1px solid ${t.cardBorder}`,
+              }}>
+                <div style={{ fontSize: 11, color: t.textSub, fontWeight: 700, letterSpacing: 2, marginBottom: 12 }}>
+                  抗菌（スプレッド転記用）
+                </div>
+                <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 10, lineHeight: 1.6 }}>
+                  報告文には出ません。スプレッドシートの抗菌列に転記されます。
+                </div>
+                <Row label="台数" t={t}>
+                  <Input value={form.kokinCount} onChange={(v) => setForm((f) => ({ ...f, kokinCount: v }))} type="number" suffix="台" t={t} />
+                </Row>
+                <Row label="金額" t={t}>
+                  <MoneyInput value={form.kokinAmount} onChange={(v) => setForm((f) => ({ ...f, kokinAmount: v }))} t={t} />
+                </Row>
+              </div>
+            )}
 
             {/* センター追加ボタン */}
             {!form.traineeMode && (
@@ -1456,8 +1457,8 @@ function res(obj) {
                     );
                   })
                 )}
-                {formatNum(center.kokinCount) > 0 && (
-                  <ConfirmRow label={`抗菌 ${center.kokinCount}台（転記用）`} value={`¥${formatNum(center.kokinAmount).toLocaleString()}`} t={t} />
+                {ci === 0 && formatNum(form.kokinCount) > 0 && (
+                  <ConfirmRow label={`抗菌 ${form.kokinCount}台（転記用）`} value={`¥${formatNum(form.kokinAmount).toLocaleString()}`} t={t} />
                 )}
               </div>
             ))}
