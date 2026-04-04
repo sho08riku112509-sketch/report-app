@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>配車表</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f0f; --card: #1a1a1a; --card-border: #2a2a2a;
+  --accent: #ff6b00; --accent2: #ff9500;
+  --text: #f0f0f0; --text-sub: #888; --text-muted: #555;
+  --input-bg: #111; --input-border: #333;
+  --success-bg: #0f3a1a; --success-text: #4ade80;
+  --error-bg: #3a0f0f; --error-text: #f87171;
+  --warn-text: #fbbf24;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg); color: var(--text);
+  min-height: 100vh; -webkit-text-size-adjust: 100%;
+}
+/* ヘッダー */
+.header {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--card); border-bottom: 1px solid var(--card-border);
+  padding: 12px 16px; display: flex; align-items: center; gap: 10px;
+}
+.header h1 {
+  font-size: 20px; font-weight: 800;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.header .spacer { flex: 1; }
+
+/* ボタン */
+.btn {
+  border: none; border-radius: 8px; cursor: pointer;
+  font-weight: 600; font-size: 13px; padding: 8px 16px;
+  transition: opacity .15s; white-space: nowrap;
+}
+.btn:active { opacity: .7; }
+.btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; }
+.btn-danger { background: var(--error-bg); color: var(--error-text); border: 1px solid rgba(248,113,113,.3); }
+.btn-ghost { background: transparent; color: var(--text-sub); border: 1px solid var(--card-border); }
+.btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+.btn-block { width: 100%; }
+
+/* カード */
+.card {
+  background: var(--card); border: 1px solid var(--card-border);
+  border-radius: 12px; padding: 16px; margin-bottom: 12px;
+}
+.card h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+
+/* インプット */
+.input, textarea {
+  width: 100%; padding: 8px 12px;
+  background: var(--input-bg); border: 1px solid var(--input-border);
+  border-radius: 8px; color: var(--text); font-size: 14px;
+  outline: none; font-family: inherit;
+}
+textarea { min-height: 120px; resize: vertical; line-height: 1.6; }
+
+/* フレックスユーティリティ */
+.flex { display: flex; }
+.flex-wrap { flex-wrap: wrap; }
+.gap-8 { gap: 8px; }
+.gap-6 { gap: 6px; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.mb-12 { margin-bottom: 12px; }
+.mt-8 { margin-top: 8px; }
+
+/* ドライバータグ */
+.driver-tag {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;
+}
+.driver-tag .count { font-size: 11px; color: var(--text-sub); }
+.driver-tag .remove {
+  background: none; border: none; color: var(--text-muted);
+  cursor: pointer; font-size: 14px; padding: 0 2px; line-height: 1;
+}
+
+/* エリアヘッダー */
+.area-header {
+  font-size: 12px; color: var(--text-sub); font-weight: 600;
+  margin-bottom: 6px; border-bottom: 1px solid var(--card-border); padding-bottom: 4px;
+}
+
+/* 便アイテム */
+.route-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; margin-bottom: 4px; border-radius: 6px;
+  border: 1px solid transparent; cursor: grab; font-size: 14px;
+  transition: background .15s; user-select: none;
+}
+.route-item:active { cursor: grabbing; }
+.route-item.selected {
+  background: rgba(255,107,0,.13); border-color: rgba(255,107,0,.4);
+}
+.route-item .trip-num { color: var(--accent); font-weight: 700; }
+.route-item .cargo { color: var(--text-sub); }
+.route-item .dest { font-weight: 500; }
+.route-item .flex-1 { flex: 1; }
+
+.route-item .assign-btn {
+  background: none; border: 1px solid var(--input-border);
+  border-radius: 4px; color: var(--text-sub); cursor: pointer;
+  font-size: 11px; padding: 2px 8px;
+}
+.route-item .remove-btn {
+  background: none; border: none; color: var(--text-muted);
+  cursor: pointer; font-size: 14px; padding: 0 4px;
+}
+
+/* ドロップダウン */
+.dropdown {
+  position: absolute; right: 0; top: 100%;
+  background: var(--card); border: 1px solid var(--card-border);
+  border-radius: 8px; padding: 4px; z-index: 50;
+  min-width: 100px; box-shadow: 0 4px 12px rgba(0,0,0,.5);
+}
+.dropdown button {
+  display: block; width: 100%; text-align: left;
+  padding: 6px 10px; background: none; border: none;
+  cursor: pointer; font-size: 13px; font-weight: 600; border-radius: 4px;
+}
+
+/* ドライバーセクション */
+.driver-section { transition: border-color .15s; }
+.driver-section.drag-over { border-color: rgba(255,107,0,.5); background: rgba(255,107,0,.05); }
+.driver-section .empty-hint {
+  padding: 20px 0; text-align: center; color: var(--text-muted);
+  font-size: 13px; border-top: 1px dashed var(--card-border); margin-top: 8px;
+}
+.driver-section h2 .count { font-size: 12px; color: var(--text-sub); font-weight: 400; margin-left: 8px; }
+
+/* プレビュー */
+.preview {
+  background: var(--input-bg); border-radius: 8px; padding: 12px;
+  font-size: 13px; line-height: 1.8; white-space: pre-wrap; font-family: monospace;
+}
+.preview .driver-name { font-weight: 700; }
+.preview .warn { color: var(--warn-text); font-weight: 700; }
+
+/* トースト */
+.toast {
+  position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+  padding: 10px 24px; border-radius: 8px; z-index: 200;
+  font-weight: 600; font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,.4);
+  transition: opacity .3s;
+}
+.toast.success { background: var(--success-bg); color: var(--success-text); }
+.toast.error { background: var(--error-bg); color: var(--error-text); }
+
+/* 選択割り当てバー */
+.assign-bar {
+  display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
+}
+.assign-bar .label { font-size: 12px; color: var(--text-sub); }
+.assign-bar button {
+  padding: 4px 10px; border-radius: 12px; cursor: pointer;
+  font-size: 12px; font-weight: 600; border-width: 1px; border-style: solid;
+}
+
+.container { padding: 16px; max-width: 900px; margin: 0 auto; }
+
+/* モバイル対応 */
+@media (max-width: 600px) {
+  .header { padding: 10px 12px; gap: 6px; }
+  .header h1 { font-size: 17px; }
+  .container { padding: 10px; }
+  .btn { padding: 6px 12px; font-size: 12px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>配車表</h1>
+  <div class="spacer"></div>
+  <button class="btn btn-primary" onclick="copyResult()">結果コピー</button>
+  <button class="btn btn-danger" onclick="clearAll()">全クリア</button>
+</div>
+
+<div class="container" id="app"></div>
+
+<div id="toast" class="toast" style="display:none;"></div>
+
+<script>
+// ===== State =====
+const ROUTES_KEY = "dispatch_routes";
+const DRIVERS_KEY = "dispatch_drivers";
+
+const DRIVER_COLORS = [
+  "#ff6b00","#3b82f6","#22c55e","#a855f7","#ef4444",
+  "#06b6d4","#f59e0b","#ec4899","#14b8a6","#8b5cf6",
+  "#f97316","#6366f1","#84cc16","#e11d48","#0ea5e9",
+];
+
+let routes = JSON.parse(localStorage.getItem(ROUTES_KEY) || "[]");
+let drivers = JSON.parse(localStorage.getItem(DRIVERS_KEY) || "[]");
+let selectedRoutes = new Set();
+let dragRouteId = null;
+let showInput = true;
+
+function save() {
+  localStorage.setItem(ROUTES_KEY, JSON.stringify(routes));
+  localStorage.setItem(DRIVERS_KEY, JSON.stringify(drivers));
+}
+
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+// ===== Parse =====
+function parseDispatchText(text) {
+  const lines = text.trim().split("\n").filter(l => l.trim());
+  const result = [];
+  let area = "";
+
+  for (const line of lines) {
+    const t = line.trim();
+    // エリアヘッダー
+    if (/^(明日の|今日の|本日の)/.test(t) || /エリア$/.test(t)) {
+      area = t.replace(/^(明日の|今日の|本日の)/, "").replace(/エリア$/, "").trim();
+      continue;
+    }
+    // 便データ: "1便 四日市アマがスカ r1" or "1便　四日市アマがスカ　r1"
+    const m = t.match(/^(\d+)便[\s\u3000]+(.+?)[\s\u3000]+([\w\d.]+)$/);
+    if (m) {
+      result.push({
+        id: genId(),
+        tripNum: parseInt(m[1]),
+        destination: m[2].trim(),
+        cargo: m[3].trim(),
+        area: area,
+        driverId: null,
+      });
+    }
+  }
+  return result;
+}
+
+// ===== Toast =====
+let toastTimer = null;
+function showToast(msg, type = "success") {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className = "toast " + type;
+  el.style.display = "block";
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.style.display = "none"; }, 2500);
+}
+
+// ===== Actions =====
+function addRoutes() {
+  const ta = document.getElementById("routeInput");
+  const text = ta.value.trim();
+  if (!text) return;
+  const newRoutes = parseDispatchText(text);
+  if (newRoutes.length === 0) {
+    showToast("便データを読み取れませんでした", "error");
+    return;
+  }
+  routes.push(...newRoutes);
+  save(); ta.value = ""; render();
+  showToast(newRoutes.length + "件の便を追加しました");
+}
+
+function addDriver() {
+  const inp = document.getElementById("driverInput");
+  const name = inp.value.trim();
+  if (!name) return;
+  if (drivers.some(d => d.name === name)) {
+    showToast("同じ名前のドライバーがいます", "error"); return;
+  }
+  drivers.push({ id: genId(), name, color: DRIVER_COLORS[drivers.length % DRIVER_COLORS.length] });
+  save(); inp.value = ""; render();
+  showToast(name + "を追加しました");
+}
+
+function removeDriver(id) {
+  routes.forEach(r => { if (r.driverId === id) r.driverId = null; });
+  drivers = drivers.filter(d => d.id !== id);
+  save(); render();
+}
+
+function assignRoute(routeId, driverId) {
+  const r = routes.find(r => r.id === routeId);
+  if (r) r.driverId = driverId;
+  save(); render();
+}
+
+function unassignRoute(routeId) {
+  const r = routes.find(r => r.id === routeId);
+  if (r) r.driverId = null;
+  save(); render();
+}
+
+function removeRoute(routeId) {
+  routes = routes.filter(r => r.id !== routeId);
+  selectedRoutes.delete(routeId);
+  save(); render();
+}
+
+function toggleSelect(routeId) {
+  if (selectedRoutes.has(routeId)) selectedRoutes.delete(routeId);
+  else selectedRoutes.add(routeId);
+  render();
+}
+
+function assignSelected(driverId) {
+  for (const id of selectedRoutes) {
+    const r = routes.find(r => r.id === id);
+    if (r) r.driverId = driverId;
+  }
+  selectedRoutes.clear();
+  save(); render();
+  showToast("割り当てました");
+}
+
+function toggleInput() {
+  showInput = !showInput; render();
+}
+
+function copyResult() {
+  const parts = [];
+  for (const d of drivers) {
+    const dr = routes.filter(r => r.driverId === d.id);
+    if (dr.length === 0) continue;
+    const lines = dr.map(r => r.tripNum + "便 " + r.destination + " " + r.cargo).join("\n");
+    parts.push(lines + "\n" + d.name);
+  }
+  const unassigned = routes.filter(r => !r.driverId);
+  let text = parts.join("\n\n");
+  if (unassigned.length > 0) {
+    text += "\n\n【未割り当て】\n" + unassigned.map(r => r.tripNum + "便 " + r.destination + " " + r.cargo).join("\n");
+  }
+  if (!text) { showToast("コピーするデータがありません", "error"); return; }
+  navigator.clipboard.writeText(text).then(() => showToast("コピーしました"));
+}
+
+function clearAll() {
+  if (!confirm("全データをクリアしますか？")) return;
+  routes = []; selectedRoutes.clear();
+  save(); render();
+  showToast("クリアしました");
+}
+
+// ===== Drag & Drop =====
+function onDragStart(e, routeId) {
+  dragRouteId = routeId;
+  e.dataTransfer.effectAllowed = "move";
+}
+
+function onDriverDragOver(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add("drag-over");
+}
+
+function onDriverDragLeave(e) {
+  e.currentTarget.classList.remove("drag-over");
+}
+
+function onDriverDrop(e, driverId) {
+  e.preventDefault();
+  e.currentTarget.classList.remove("drag-over");
+  if (dragRouteId) {
+    assignRoute(dragRouteId, driverId);
+    dragRouteId = null;
+  }
+}
+
+// ===== Render =====
+function render() {
+  const app = document.getElementById("app");
+  const unassigned = routes.filter(r => !r.driverId);
+
+  let html = "";
+
+  // 便データ入力
+  html += '<div class="card">';
+  html += '<div class="flex items-center justify-between" style="margin-bottom:' + (showInput ? '12px' : '0') + '">';
+  html += '<h2 style="margin:0">便データ入力</h2>';
+  html += '<button class="btn btn-ghost btn-sm" onclick="toggleInput()">' + (showInput ? '閉じる' : '開く') + '</button>';
+  html += '</div>';
+  if (showInput) {
+    html += '<textarea id="routeInput" placeholder="例:\n明日の四日市\n1便 四日市アマがスカ r1\n3便 四日市大谷地 rf1\n6便 四日市 r2"></textarea>';
+    html += '<button class="btn btn-primary btn-block mt-8" onclick="addRoutes()">追加</button>';
+  }
+  html += '</div>';
+
+  // ドライバー管理
+  html += '<div class="card">';
+  html += '<h2>ドライバー</h2>';
+  html += '<div class="flex gap-8 mb-12">';
+  html += '<input id="driverInput" class="input" placeholder="名前を入力" onkeydown="if(event.key===\'Enter\')addDriver()" style="flex:1">';
+  html += '<button class="btn btn-primary" onclick="addDriver()">追加</button>';
+  html += '</div>';
+  html += '<div class="flex flex-wrap gap-8">';
+  for (const d of drivers) {
+    const cnt = routes.filter(r => r.driverId === d.id).length;
+    html += '<div class="driver-tag" style="background:' + d.color + '22;border:1px solid ' + d.color + '66">';
+    html += '<span style="color:' + d.color + '">' + esc(d.name) + '</span>';
+    html += '<span class="count">(' + cnt + '件)</span>';
+    html += '<button class="remove" onclick="removeDriver(\'' + d.id + '\')">×</button>';
+    html += '</div>';
+  }
+  html += '</div></div>';
+
+  // 未割り当て
+  if (unassigned.length > 0) {
+    html += '<div class="card">';
+    html += '<div class="flex items-center justify-between mb-12">';
+    html += '<h2 style="margin:0">未割り当て (' + unassigned.length + '件)</h2>';
+    if (selectedRoutes.size > 0) {
+      html += '<div class="assign-bar">';
+      html += '<span class="label">' + selectedRoutes.size + '件選択中 →</span>';
+      for (const d of drivers) {
+        html += '<button style="background:' + d.color + '33;border-color:' + d.color + ';color:' + d.color + '" onclick="assignSelected(\'' + d.id + '\')">' + esc(d.name) + '</button>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+
+    // エリア別グループ
+    const groups = {};
+    for (const r of unassigned) {
+      const a = r.area || "その他";
+      if (!groups[a]) groups[a] = [];
+      groups[a].push(r);
+    }
+    for (const [area, aRoutes] of Object.entries(groups)) {
+      html += '<div class="area-header">' + esc(area) + '</div>';
+      for (const r of aRoutes) {
+        html += renderRouteItem(r, false);
+      }
+    }
+    html += '</div>';
+  }
+
+  // ドライバー別
+  for (const d of drivers) {
+    const dRoutes = routes.filter(r => r.driverId === d.id);
+    html += '<div class="card driver-section" style="border-color:' + d.color + '44" ondragover="onDriverDragOver(event)" ondragleave="onDriverDragLeave(event)" ondrop="onDriverDrop(event,\'' + d.id + '\')">';
+    html += '<div class="flex items-center justify-between" style="margin-bottom:' + (dRoutes.length > 0 ? '10' : '0') + 'px">';
+    html += '<h2 style="margin:0;color:' + d.color + '">' + esc(d.name) + '<span class="count">' + dRoutes.length + '件</span></h2>';
+    html += '</div>';
+    if (dRoutes.length === 0) {
+      html += '<div class="empty-hint">ここに便をドラッグまたはタップで割り当て</div>';
+    }
+    for (const r of dRoutes) {
+      html += renderRouteItem(r, true);
+    }
+    html += '</div>';
+  }
+
+  // プレビュー
+  if (routes.length > 0 && drivers.some(d => routes.some(r => r.driverId === d.id))) {
+    html += '<div class="card">';
+    html += '<h2>配車結果プレビュー</h2>';
+    html += '<div class="preview">';
+    for (const d of drivers) {
+      const dRoutes = routes.filter(r => r.driverId === d.id);
+      if (dRoutes.length === 0) continue;
+      for (const r of dRoutes) {
+        html += esc(r.tripNum + "便 " + r.destination + " " + r.cargo) + "\n";
+      }
+      html += '<span class="driver-name" style="color:' + d.color + '">' + esc(d.name) + '</span>\n\n';
+    }
+    if (unassigned.length > 0) {
+      html += '<span class="warn">【未割り当て】</span>\n';
+      for (const r of unassigned) {
+        html += esc(r.tripNum + "便 " + r.destination + " " + r.cargo) + "\n";
+      }
+    }
+    html += '</div></div>';
+  }
+
+  app.innerHTML = html;
+}
+
+function renderRouteItem(r, assigned) {
+  const sel = selectedRoutes.has(r.id);
+  let html = '<div class="route-item' + (sel ? ' selected' : '') + '" draggable="true" ondragstart="onDragStart(event,\'' + r.id + '\')">';
+  if (!assigned) {
+    html += '<input type="checkbox" ' + (sel ? 'checked' : '') + ' onchange="toggleSelect(\'' + r.id + '\')" style="accent-color:var(--accent);cursor:pointer">';
+  }
+  html += '<span class="flex-1"><span class="trip-num">' + r.tripNum + '便</span> ';
+  html += '<span class="dest">' + esc(r.destination) + '</span> ';
+  html += '<span class="cargo">' + esc(r.cargo) + '</span></span>';
+
+  if (!assigned && drivers.length > 0) {
+    html += '<div style="position:relative;display:inline-block">';
+    html += '<button class="assign-btn" onclick="toggleDropdown(this)">割当</button>';
+    html += '<div class="dropdown" style="display:none">';
+    for (const d of drivers) {
+      html += '<button style="color:' + d.color + '" onmouseover="this.style.background=\'' + d.color + '22\'" onmouseout="this.style.background=\'none\'" onclick="assignRoute(\'' + r.id + '\',\'' + d.id + '\')">' + esc(d.name) + '</button>';
+    }
+    html += '</div></div>';
+  }
+  if (assigned) {
+    html += '<button class="assign-btn" onclick="unassignRoute(\'' + r.id + '\')">戻す</button>';
+  }
+  html += '<button class="remove-btn" onclick="removeRoute(\'' + r.id + '\')">×</button>';
+  html += '</div>';
+  return html;
+}
+
+function toggleDropdown(btn) {
+  // 他のドロップダウンを閉じる
+  document.querySelectorAll(".dropdown").forEach(d => { d.style.display = "none"; });
+  const dd = btn.nextElementSibling;
+  dd.style.display = dd.style.display === "none" ? "block" : "none";
+}
+
+// ドロップダウンを外側クリックで閉じる
+document.addEventListener("click", function(e) {
+  if (!e.target.classList.contains("assign-btn")) {
+    document.querySelectorAll(".dropdown").forEach(d => { d.style.display = "none"; });
+  }
+});
+
+function esc(s) {
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// 初回描画
+render();
+</script>
+</body>
+</html>
