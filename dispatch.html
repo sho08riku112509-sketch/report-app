@@ -384,7 +384,7 @@ function copyResult(){
 }
 
 function showAddDriver(){
-  var name=prompt("ドライバー名を入力");
+  var name=prompt("作業者名を入力");
   if(!name||!name.trim())return;
   var n=name.trim();
   if(drivers.some(function(d){return d.name===n})){showToast("既に存在します","error");return}
