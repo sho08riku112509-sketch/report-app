@@ -1131,49 +1131,40 @@ function res(obj) {
               />
             </div>
 
-            {/* 訂正モード */}
-            {!form.traineeMode && (
+            {/* 訂正モード（履歴から入った場合のみ表示） */}
+            {form.correctionMode && (
               <div style={{
-                background: t.card,
-                borderRadius: 12,
-                padding: "14px 16px",
-                border: `1px solid ${form.correctionMode ? "#f59e0b" : t.cardBorder}`,
-                display: "flex",
-                flexDirection: "column",
-                gap: form.correctionMode ? 10 : 0,
+                background: t.card, borderRadius: 12, padding: "14px 16px",
+                border: `2px solid #f59e0b`,
+                display: "flex", flexDirection: "column", gap: 10,
               }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: form.correctionMode ? "#f59e0b" : t.textSub }}>
-                      訂正モード
-                    </div>
-                    <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>
-                      過去の報告を訂正する場合にON
-                    </div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#f59e0b" }}>
+                    訂正モード
                   </div>
-                  <Toggle
-                    active={form.correctionMode}
-                    onClick={() => setForm((f) => {
-                      const next = !f.correctionMode;
-                      return { ...f, correctionMode: next, correctionReason: "", corrections: f.centers.map(() => defaultCorrections()) };
-                    })}
-                    t={t}
-                  />
-                </div>
-                {form.correctionMode && (
-                  <textarea
-                    value={form.correctionReason}
-                    onChange={(e) => setForm(f => ({ ...f, correctionReason: e.target.value }))}
-                    placeholder="訂正理由を入力（例：その他金額、訪問料を頂きましたので訂正をお願いいたします。）"
-                    rows={2}
+                  <button
+                    onClick={() => setForm((f) => ({ ...f, correctionMode: false, correctionReason: "", corrections: f.centers.map(() => defaultCorrections()) }))}
                     style={{
-                      width: "100%", background: t.input, border: `1px solid ${t.inputBorder}`,
-                      borderRadius: 8, color: t.text, padding: "8px 12px",
-                      fontSize: 13, outline: "none", resize: "vertical", boxSizing: "border-box",
-                      fontFamily: "inherit",
+                      background: "transparent", border: `1px solid #f59e0b`,
+                      borderRadius: 6, color: "#f59e0b", fontSize: 12, cursor: "pointer",
+                      padding: "4px 10px",
                     }}
-                  />
-                )}
+                  >
+                    訂正モードを解除
+                  </button>
+                </div>
+                <textarea
+                  value={form.correctionReason}
+                  onChange={(e) => setForm(f => ({ ...f, correctionReason: e.target.value }))}
+                  placeholder="訂正理由を入力（例：その他金額、訪問料を頂きましたので訂正をお願いいたします。）"
+                  rows={2}
+                  style={{
+                    width: "100%", background: t.input, border: `1px solid ${t.inputBorder}`,
+                    borderRadius: 8, color: t.text, padding: "8px 12px",
+                    fontSize: 13, outline: "none", resize: "vertical", boxSizing: "border-box",
+                    fontFamily: "inherit",
+                  }}
+                />
               </div>
             )}
 
