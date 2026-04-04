@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>配車表</title>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"><\/script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"><\/script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -20,11 +23,11 @@ body {
   background: var(--bg); color: var(--text);
   min-height: 100vh; -webkit-text-size-adjust: 100%;
 }
-/* ヘッダー */
 .header {
   position: sticky; top: 0; z-index: 100;
   background: var(--card); border-bottom: 1px solid var(--card-border);
   padding: 12px 16px; display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap;
 }
 .header h1 {
   font-size: 20px; font-weight: 800;
@@ -32,8 +35,20 @@ body {
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
 .header .spacer { flex: 1; }
-
-/* ボタン */
+.header-row2 {
+  width: 100%; display: flex; align-items: center; gap: 8px; margin-top: 8px;
+}
+.sync-badge {
+  font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 600;
+}
+.sync-badge.connected { background: var(--success-bg); color: var(--success-text); }
+.sync-badge.disconnected { background: var(--error-bg); color: var(--error-text); }
+.sync-badge.syncing { background: #3a3a0f; color: var(--warn-text); }
+.date-input {
+  background: var(--input-bg); border: 1px solid var(--input-border);
+  border-radius: 8px; color: var(--text); padding: 6px 10px; font-size: 13px;
+  outline: none; font-family: inherit;
+}
 .btn {
   border: none; border-radius: 8px; cursor: pointer;
   font-weight: 600; font-size: 13px; padding: 8px 16px;
@@ -45,15 +60,11 @@ body {
 .btn-ghost { background: transparent; color: var(--text-sub); border: 1px solid var(--card-border); }
 .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
 .btn-block { width: 100%; }
-
-/* カード */
 .card {
   background: var(--card); border: 1px solid var(--card-border);
   border-radius: 12px; padding: 16px; margin-bottom: 12px;
 }
 .card h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
-
-/* インプット */
 .input, textarea {
   width: 100%; padding: 8px 12px;
   background: var(--input-bg); border: 1px solid var(--input-border);
@@ -61,18 +72,13 @@ body {
   outline: none; font-family: inherit;
 }
 textarea { min-height: 120px; resize: vertical; line-height: 1.6; }
-
-/* フレックスユーティリティ */
 .flex { display: flex; }
 .flex-wrap { flex-wrap: wrap; }
 .gap-8 { gap: 8px; }
-.gap-6 { gap: 6px; }
 .items-center { align-items: center; }
 .justify-between { justify-content: space-between; }
 .mb-12 { margin-bottom: 12px; }
 .mt-8 { margin-top: 8px; }
-
-/* ドライバータグ */
 .driver-tag {
   display: flex; align-items: center; gap: 6px;
   padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;
@@ -82,14 +88,10 @@ textarea { min-height: 120px; resize: vertical; line-height: 1.6; }
   background: none; border: none; color: var(--text-muted);
   cursor: pointer; font-size: 14px; padding: 0 2px; line-height: 1;
 }
-
-/* エリアヘッダー */
 .area-header {
   font-size: 12px; color: var(--text-sub); font-weight: 600;
   margin-bottom: 6px; border-bottom: 1px solid var(--card-border); padding-bottom: 4px;
 }
-
-/* 便アイテム */
 .route-item {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 10px; margin-bottom: 4px; border-radius: 6px;
@@ -104,7 +106,6 @@ textarea { min-height: 120px; resize: vertical; line-height: 1.6; }
 .route-item .cargo { color: var(--text-sub); }
 .route-item .dest { font-weight: 500; }
 .route-item .flex-1 { flex: 1; }
-
 .route-item .assign-btn {
   background: none; border: 1px solid var(--input-border);
   border-radius: 4px; color: var(--text-sub); cursor: pointer;
@@ -114,8 +115,6 @@ textarea { min-height: 120px; resize: vertical; line-height: 1.6; }
   background: none; border: none; color: var(--text-muted);
   cursor: pointer; font-size: 14px; padding: 0 4px;
 }
-
-/* ドロップダウン */
 .dropdown {
   position: absolute; right: 0; top: 100%;
   background: var(--card); border: 1px solid var(--card-border);
@@ -127,8 +126,6 @@ textarea { min-height: 120px; resize: vertical; line-height: 1.6; }
   padding: 6px 10px; background: none; border: none;
   cursor: pointer; font-size: 13px; font-weight: 600; border-radius: 4px;
 }
-
-/* ドライバーセクション */
 .driver-section { transition: border-color .15s; }
 .driver-section.drag-over { border-color: rgba(255,107,0,.5); background: rgba(255,107,0,.05); }
 .driver-section .empty-hint {
@@ -136,16 +133,12 @@ textarea { min-height: 120px; resize: vertical; line-height: 1.6; }
   font-size: 13px; border-top: 1px dashed var(--card-border); margin-top: 8px;
 }
 .driver-section h2 .count { font-size: 12px; color: var(--text-sub); font-weight: 400; margin-left: 8px; }
-
-/* プレビュー */
 .preview {
   background: var(--input-bg); border-radius: 8px; padding: 12px;
   font-size: 13px; line-height: 1.8; white-space: pre-wrap; font-family: monospace;
 }
 .preview .driver-name { font-weight: 700; }
 .preview .warn { color: var(--warn-text); font-weight: 700; }
-
-/* トースト */
 .toast {
   position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
   padding: 10px 24px; border-radius: 8px; z-index: 200;
@@ -154,8 +147,6 @@ textarea { min-height: 120px; resize: vertical; line-height: 1.6; }
 }
 .toast.success { background: var(--success-bg); color: var(--success-text); }
 .toast.error { background: var(--error-bg); color: var(--error-text); }
-
-/* 選択割り当てバー */
 .assign-bar {
   display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
 }
@@ -164,10 +155,19 @@ textarea { min-height: 120px; resize: vertical; line-height: 1.6; }
   padding: 4px 10px; border-radius: 12px; cursor: pointer;
   font-size: 12px; font-weight: 600; border-width: 1px; border-style: solid;
 }
-
 .container { padding: 16px; max-width: 900px; margin: 0 auto; }
-
-/* モバイル対応 */
+.setup-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,.85); z-index: 300;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.setup-box {
+  background: var(--card); border: 1px solid var(--card-border);
+  border-radius: 16px; padding: 24px; max-width: 500px; width: 100%;
+}
+.setup-box h2 { font-size: 18px; margin-bottom: 16px; }
+.setup-box p { font-size: 13px; color: var(--text-sub); margin-bottom: 12px; line-height: 1.6; }
+.setup-box textarea { min-height: 200px; font-family: monospace; font-size: 12px; }
 @media (max-width: 600px) {
   .header { padding: 10px 12px; gap: 6px; }
   .header h1 { font-size: 17px; }
@@ -178,37 +178,179 @@ textarea { min-height: 120px; resize: vertical; line-height: 1.6; }
 </head>
 <body>
 
-<div class="header">
+<div class="header" id="headerEl">
   <h1>配車表</h1>
   <div class="spacer"></div>
+  <span id="syncBadge" class="sync-badge syncing">接続中...</span>
+  <button class="btn btn-ghost btn-sm" onclick="shareUrl()">URL共有</button>
   <button class="btn btn-primary" onclick="copyResult()">結果コピー</button>
   <button class="btn btn-danger" onclick="clearAll()">全クリア</button>
+  <div class="header-row2">
+    <label style="font-size:12px;color:var(--text-sub)">日付:</label>
+    <input type="date" id="roomDate" class="date-input" onchange="switchRoom(this.value)">
+    <button class="btn btn-ghost btn-sm" onclick="goToday()">今日</button>
+    <button class="btn btn-ghost btn-sm" onclick="goTomorrow()">明日</button>
+  </div>
 </div>
 
 <div class="container" id="app"></div>
-
 <div id="toast" class="toast" style="display:none;"></div>
+<div id="setupOverlay" class="setup-overlay" style="display:none;">
+  <div class="setup-box">
+    <h2>Firebase設定</h2>
+    <p>Firebase Consoleでプロジェクトを作成し、Realtime Databaseを有効化してください。<br>
+    設定値をJSON形式で貼り付けてください。</p>
+    <textarea id="configInput" placeholder='{
+  "apiKey": "AIza...",
+  "authDomain": "your-project.firebaseapp.com",
+  "databaseURL": "https://your-project-default-rtdb.firebaseio.com",
+  "projectId": "your-project",
+  "storageBucket": "your-project.appspot.com",
+  "messagingSenderId": "123456",
+  "appId": "1:123456:web:abc123"
+}'></textarea>
+    <button class="btn btn-primary btn-block mt-8" onclick="saveConfig()">保存して接続</button>
+  </div>
+</div>
 
 <script>
-// ===== State =====
-const ROUTES_KEY = "dispatch_routes";
-const DRIVERS_KEY = "dispatch_drivers";
+// ===== Firebase Config =====
+const CONFIG_KEY = "dispatch_firebase_config";
+let db = null;
+let currentRoom = "";
+let dbRef = null;
+let isRemoteUpdate = false;
 
+function getStoredConfig() {
+  try { return JSON.parse(localStorage.getItem(CONFIG_KEY)); } catch { return null; }
+}
+
+function initFirebase(config) {
+  try {
+    if (!firebase.apps.length) {
+      firebase.initializeApp(config);
+    }
+    db = firebase.database();
+    setSyncStatus("connected");
+    // 接続状態監視
+    db.ref(".info/connected").on("value", (snap) => {
+      setSyncStatus(snap.val() ? "connected" : "disconnected");
+    });
+    return true;
+  } catch (e) {
+    console.error("Firebase init error:", e);
+    setSyncStatus("disconnected");
+    return false;
+  }
+}
+
+function saveConfig() {
+  const raw = document.getElementById("configInput").value.trim();
+  try {
+    const config = JSON.parse(raw);
+    if (!config.databaseURL) throw new Error("databaseURL is required");
+    localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+    if (initFirebase(config)) {
+      document.getElementById("setupOverlay").style.display = "none";
+      subscribeRoom(currentRoom);
+      showToast("Firebase接続完了");
+    }
+  } catch (e) {
+    showToast("設定が正しくありません: " + e.message, "error");
+  }
+}
+
+function setSyncStatus(status) {
+  const el = document.getElementById("syncBadge");
+  if (status === "connected") { el.textContent = "同期済み"; el.className = "sync-badge connected"; }
+  else if (status === "disconnected") { el.textContent = "未接続"; el.className = "sync-badge disconnected"; }
+  else { el.textContent = "同期中..."; el.className = "sync-badge syncing"; }
+}
+
+// ===== Room System =====
+function getTodayStr() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+}
+
+function getTomorrowStr() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+}
+
+function getRoomFromHash() {
+  const h = location.hash;
+  const m = h.match(/room=(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : null;
+}
+
+function switchRoom(dateStr) {
+  if (!dateStr) return;
+  currentRoom = dateStr;
+  location.hash = "room=" + dateStr;
+  document.getElementById("roomDate").value = dateStr;
+  selectedRoutes.clear();
+  subscribeRoom(dateStr);
+}
+
+function goToday() { switchRoom(getTodayStr()); }
+function goTomorrow() { switchRoom(getTomorrowStr()); }
+
+function subscribeRoom(roomId) {
+  // 前のリスナーを解除
+  if (dbRef) dbRef.off();
+  if (!db) {
+    // Firebase未設定時はlocalStorageフォールバック
+    routes = JSON.parse(localStorage.getItem("dispatch_routes_" + roomId) || "[]");
+    drivers = JSON.parse(localStorage.getItem("dispatch_drivers_" + roomId) || "[]");
+    render();
+    return;
+  }
+  dbRef = db.ref("dispatch/" + roomId);
+  setSyncStatus("syncing");
+  dbRef.on("value", (snap) => {
+    const data = snap.val();
+    isRemoteUpdate = true;
+    if (data) {
+      routes = data.routes || [];
+      drivers = data.drivers || [];
+    } else {
+      routes = [];
+      drivers = [];
+    }
+    selectedRoutes.clear();
+    render();
+    setSyncStatus("connected");
+    isRemoteUpdate = false;
+  });
+}
+
+function shareUrl() {
+  const url = location.origin + location.pathname + "#room=" + currentRoom;
+  navigator.clipboard.writeText(url).then(() => showToast("URLをコピーしました"));
+}
+
+// ===== State =====
 const DRIVER_COLORS = [
   "#ff6b00","#3b82f6","#22c55e","#a855f7","#ef4444",
   "#06b6d4","#f59e0b","#ec4899","#14b8a6","#8b5cf6",
   "#f97316","#6366f1","#84cc16","#e11d48","#0ea5e9",
 ];
 
-let routes = JSON.parse(localStorage.getItem(ROUTES_KEY) || "[]");
-let drivers = JSON.parse(localStorage.getItem(DRIVERS_KEY) || "[]");
+let routes = [];
+let drivers = [];
 let selectedRoutes = new Set();
 let dragRouteId = null;
 let showInput = true;
 
 function save() {
-  localStorage.setItem(ROUTES_KEY, JSON.stringify(routes));
-  localStorage.setItem(DRIVERS_KEY, JSON.stringify(drivers));
+  if (db && dbRef) {
+    dbRef.set({ routes: routes, drivers: drivers });
+  } else {
+    localStorage.setItem("dispatch_routes_" + currentRoom, JSON.stringify(routes));
+    localStorage.setItem("dispatch_drivers_" + currentRoom, JSON.stringify(drivers));
+  }
 }
 
 function genId() {
@@ -220,24 +362,18 @@ function parseDispatchText(text) {
   const lines = text.trim().split("\n").filter(l => l.trim());
   const result = [];
   let area = "";
-
   for (const line of lines) {
     const t = line.trim();
-    // エリアヘッダー
     if (/^(明日の|今日の|本日の)/.test(t) || /エリア$/.test(t)) {
       area = t.replace(/^(明日の|今日の|本日の)/, "").replace(/エリア$/, "").trim();
       continue;
     }
-    // 便データ: "1便 四日市アマがスカ r1" or "1便　四日市アマがスカ　r1"
     const m = t.match(/^(\d+)便[\s\u3000]+(.+?)[\s\u3000]+([\w\d.]+)$/);
     if (m) {
       result.push({
-        id: genId(),
-        tripNum: parseInt(m[1]),
-        destination: m[2].trim(),
-        cargo: m[3].trim(),
-        area: area,
-        driverId: null,
+        id: genId(), tripNum: parseInt(m[1]),
+        destination: m[2].trim(), cargo: m[3].trim(),
+        area: area, driverId: null,
       });
     }
   }
@@ -261,10 +397,7 @@ function addRoutes() {
   const text = ta.value.trim();
   if (!text) return;
   const newRoutes = parseDispatchText(text);
-  if (newRoutes.length === 0) {
-    showToast("便データを読み取れませんでした", "error");
-    return;
-  }
+  if (newRoutes.length === 0) { showToast("便データを読み取れませんでした", "error"); return; }
   routes.push(...newRoutes);
   save(); ta.value = ""; render();
   showToast(newRoutes.length + "件の便を追加しました");
@@ -274,9 +407,7 @@ function addDriver() {
   const inp = document.getElementById("driverInput");
   const name = inp.value.trim();
   if (!name) return;
-  if (drivers.some(d => d.name === name)) {
-    showToast("同じ名前のドライバーがいます", "error"); return;
-  }
+  if (drivers.some(d => d.name === name)) { showToast("同じ名前のドライバーがいます", "error"); return; }
   drivers.push({ id: genId(), name, color: DRIVER_COLORS[drivers.length % DRIVER_COLORS.length] });
   save(); inp.value = ""; render();
   showToast(name + "を追加しました");
@@ -322,9 +453,7 @@ function assignSelected(driverId) {
   showToast("割り当てました");
 }
 
-function toggleInput() {
-  showInput = !showInput; render();
-}
+function toggleInput() { showInput = !showInput; render(); }
 
 function copyResult() {
   const parts = [];
@@ -345,40 +474,24 @@ function copyResult() {
 
 function clearAll() {
   if (!confirm("全データをクリアしますか？")) return;
-  routes = []; selectedRoutes.clear();
+  routes = []; drivers = []; selectedRoutes.clear();
   save(); render();
   showToast("クリアしました");
 }
 
 // ===== Drag & Drop =====
-function onDragStart(e, routeId) {
-  dragRouteId = routeId;
-  e.dataTransfer.effectAllowed = "move";
-}
-
-function onDriverDragOver(e) {
-  e.preventDefault();
-  e.currentTarget.classList.add("drag-over");
-}
-
-function onDriverDragLeave(e) {
-  e.currentTarget.classList.remove("drag-over");
-}
-
+function onDragStart(e, routeId) { dragRouteId = routeId; e.dataTransfer.effectAllowed = "move"; }
+function onDriverDragOver(e) { e.preventDefault(); e.currentTarget.classList.add("drag-over"); }
+function onDriverDragLeave(e) { e.currentTarget.classList.remove("drag-over"); }
 function onDriverDrop(e, driverId) {
-  e.preventDefault();
-  e.currentTarget.classList.remove("drag-over");
-  if (dragRouteId) {
-    assignRoute(dragRouteId, driverId);
-    dragRouteId = null;
-  }
+  e.preventDefault(); e.currentTarget.classList.remove("drag-over");
+  if (dragRouteId) { assignRoute(dragRouteId, driverId); dragRouteId = null; }
 }
 
 // ===== Render =====
 function render() {
   const app = document.getElementById("app");
   const unassigned = routes.filter(r => !r.driverId);
-
   let html = "";
 
   // 便データ入力
@@ -425,19 +538,11 @@ function render() {
       html += '</div>';
     }
     html += '</div>';
-
-    // エリア別グループ
     const groups = {};
-    for (const r of unassigned) {
-      const a = r.area || "その他";
-      if (!groups[a]) groups[a] = [];
-      groups[a].push(r);
-    }
+    for (const r of unassigned) { const a = r.area || "その他"; if (!groups[a]) groups[a] = []; groups[a].push(r); }
     for (const [area, aRoutes] of Object.entries(groups)) {
       html += '<div class="area-header">' + esc(area) + '</div>';
-      for (const r of aRoutes) {
-        html += renderRouteItem(r, false);
-      }
+      for (const r of aRoutes) { html += renderRouteItem(r, false); }
     }
     html += '</div>';
   }
@@ -449,12 +554,8 @@ function render() {
     html += '<div class="flex items-center justify-between" style="margin-bottom:' + (dRoutes.length > 0 ? '10' : '0') + 'px">';
     html += '<h2 style="margin:0;color:' + d.color + '">' + esc(d.name) + '<span class="count">' + dRoutes.length + '件</span></h2>';
     html += '</div>';
-    if (dRoutes.length === 0) {
-      html += '<div class="empty-hint">ここに便をドラッグまたはタップで割り当て</div>';
-    }
-    for (const r of dRoutes) {
-      html += renderRouteItem(r, true);
-    }
+    if (dRoutes.length === 0) { html += '<div class="empty-hint">ここに便をドラッグまたはタップで割り当て</div>'; }
+    for (const r of dRoutes) { html += renderRouteItem(r, true); }
     html += '</div>';
   }
 
@@ -466,16 +567,12 @@ function render() {
     for (const d of drivers) {
       const dRoutes = routes.filter(r => r.driverId === d.id);
       if (dRoutes.length === 0) continue;
-      for (const r of dRoutes) {
-        html += esc(r.tripNum + "便 " + r.destination + " " + r.cargo) + "\n";
-      }
+      for (const r of dRoutes) { html += esc(r.tripNum + "便 " + r.destination + " " + r.cargo) + "\n"; }
       html += '<span class="driver-name" style="color:' + d.color + '">' + esc(d.name) + '</span>\n\n';
     }
     if (unassigned.length > 0) {
       html += '<span class="warn">【未割り当て】</span>\n';
-      for (const r of unassigned) {
-        html += esc(r.tripNum + "便 " + r.destination + " " + r.cargo) + "\n";
-      }
+      for (const r of unassigned) { html += esc(r.tripNum + "便 " + r.destination + " " + r.cargo) + "\n"; }
     }
     html += '</div></div>';
   }
@@ -492,7 +589,6 @@ function renderRouteItem(r, assigned) {
   html += '<span class="flex-1"><span class="trip-num">' + r.tripNum + '便</span> ';
   html += '<span class="dest">' + esc(r.destination) + '</span> ';
   html += '<span class="cargo">' + esc(r.cargo) + '</span></span>';
-
   if (!assigned && drivers.length > 0) {
     html += '<div style="position:relative;display:inline-block">';
     html += '<button class="assign-btn" onclick="toggleDropdown(this)">割当</button>';
@@ -502,36 +598,55 @@ function renderRouteItem(r, assigned) {
     }
     html += '</div></div>';
   }
-  if (assigned) {
-    html += '<button class="assign-btn" onclick="unassignRoute(\'' + r.id + '\')">戻す</button>';
-  }
+  if (assigned) { html += '<button class="assign-btn" onclick="unassignRoute(\'' + r.id + '\')">戻す</button>'; }
   html += '<button class="remove-btn" onclick="removeRoute(\'' + r.id + '\')">×</button>';
   html += '</div>';
   return html;
 }
 
 function toggleDropdown(btn) {
-  // 他のドロップダウンを閉じる
   document.querySelectorAll(".dropdown").forEach(d => { d.style.display = "none"; });
   const dd = btn.nextElementSibling;
   dd.style.display = dd.style.display === "none" ? "block" : "none";
 }
 
-// ドロップダウンを外側クリックで閉じる
 document.addEventListener("click", function(e) {
   if (!e.target.classList.contains("assign-btn")) {
     document.querySelectorAll(".dropdown").forEach(d => { d.style.display = "none"; });
   }
 });
 
-function esc(s) {
-  const d = document.createElement("div");
-  d.textContent = s;
-  return d.innerHTML;
-}
+function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
 
-// 初回描画
-render();
-</script>
+// ===== Init =====
+(function init() {
+  // ルーム決定
+  currentRoom = getRoomFromHash() || getTomorrowStr();
+  document.getElementById("roomDate").value = currentRoom;
+  location.hash = "room=" + currentRoom;
+
+  // Firebase設定チェック
+  const config = getStoredConfig();
+  if (config) {
+    if (initFirebase(config)) {
+      subscribeRoom(currentRoom);
+    } else {
+      document.getElementById("setupOverlay").style.display = "flex";
+    }
+  } else {
+    // Firebase未設定 - 設定画面表示
+    document.getElementById("setupOverlay").style.display = "flex";
+    setSyncStatus("disconnected");
+    // localStorageフォールバックで描画
+    subscribeRoom(currentRoom);
+  }
+})();
+
+// ハッシュ変更時
+window.addEventListener("hashchange", () => {
+  const room = getRoomFromHash();
+  if (room && room !== currentRoom) switchRoom(room);
+});
+<\/script>
 </body>
 </html>
