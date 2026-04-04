@@ -1115,10 +1115,10 @@ function res(obj) {
             }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: form.traineeMode ? t.accent : t.textSub }}>
-                  研修モード
+                  研修者報告用
                 </div>
                 <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>
-                  ONにすると研修同行報告に切り替わります
+                  ONにすると研修同行の報告に切り替わります
                 </div>
               </div>
               <Toggle
