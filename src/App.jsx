@@ -1101,56 +1101,12 @@ function res(obj) {
               {form.manCount >= 2 && !form.traineeMode && form.partnerNames.map((name, i) => (
                 <div key={i} style={{ marginBottom: 10 }}>
                   <Row label={`相手${form.manCount > 2 ? (i + 1) : ""}`} t={t}>
-                    {partnerInputModes[i] === "input" ? (
-                      <div>
-                        <Input
-                          value={name}
-                          onChange={(v) => updatePartnerName(i, v)}
-                          placeholder="名前を入力"
-                          t={t}
-                        />
-                        {enabledStaff.length > 0 && (
-                          <button
-                            onClick={() => switchPartnerToSelect(i)}
-                            style={{
-                              background: "transparent", border: "none",
-                              color: t.accent, fontSize: 12, cursor: "pointer",
-                              padding: "4px 0", marginTop: 4,
-                            }}
-                          >
-                            ← 一覧から選ぶ
-                          </button>
-                        )}
-                      </div>
-                    ) : enabledStaff.length > 0 ? (
-                      <select
-                        value={name}
-                        onChange={(e) => handlePartnerSelect(i, e.target.value)}
-                        style={{
-                          width: "100%",
-                          background: t.input,
-                          border: `1px solid ${t.inputBorder}`,
-                          borderRadius: 8,
-                          color: name ? t.text : t.textMuted,
-                          padding: "8px 12px",
-                          fontSize: 15,
-                          outline: "none",
-                        }}
-                      >
-                        <option value="">選択してください</option>
-                        {enabledStaff.map((s) => (
-                          <option key={s.id} value={s.name}>{s.name}</option>
-                        ))}
-                        <option value="__manual__">直接入力</option>
-                      </select>
-                    ) : (
-                      <Input
-                        value={name}
-                        onChange={(v) => updatePartnerName(i, v)}
-                        placeholder="名前を入力"
-                        t={t}
-                      />
-                    )}
+                    <Input
+                      value={name}
+                      onChange={(v) => updatePartnerName(i, v)}
+                      placeholder="名前を入力"
+                      t={t}
+                    />
                   </Row>
                   {/* 研修チェックボックス */}
                   <div
