@@ -156,18 +156,6 @@ textarea { min-height: 120px; resize: vertical; line-height: 1.6; }
   font-size: 12px; font-weight: 600; border-width: 1px; border-style: solid;
 }
 .container { padding: 16px; max-width: 900px; margin: 0 auto; }
-.setup-overlay {
-  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,.85); z-index: 300;
-  display: flex; align-items: center; justify-content: center; padding: 20px;
-}
-.setup-box {
-  background: var(--card); border: 1px solid var(--card-border);
-  border-radius: 16px; padding: 24px; max-width: 500px; width: 100%;
-}
-.setup-box h2 { font-size: 18px; margin-bottom: 16px; }
-.setup-box p { font-size: 13px; color: var(--text-sub); margin-bottom: 12px; line-height: 1.6; }
-.setup-box textarea { min-height: 200px; font-family: monospace; font-size: 12px; }
 @media (max-width: 600px) {
   .header { padding: 10px 12px; gap: 6px; }
   .header h1 { font-size: 17px; }
@@ -195,35 +183,24 @@ textarea { min-height: 120px; resize: vertical; line-height: 1.6; }
 
 <div class="container" id="app"></div>
 <div id="toast" class="toast" style="display:none;"></div>
-<div id="setupOverlay" class="setup-overlay" style="display:none;">
-  <div class="setup-box">
-    <h2>Firebase設定</h2>
-    <p>Firebase Consoleでプロジェクトを作成し、Realtime Databaseを有効化してください。<br>
-    設定値をJSON形式で貼り付けてください。</p>
-    <textarea id="configInput" placeholder='{
-  "apiKey": "AIza...",
-  "authDomain": "your-project.firebaseapp.com",
-  "databaseURL": "https://your-project-default-rtdb.firebaseio.com",
-  "projectId": "your-project",
-  "storageBucket": "your-project.appspot.com",
-  "messagingSenderId": "123456",
-  "appId": "1:123456:web:abc123"
-}'></textarea>
-    <button class="btn btn-primary btn-block mt-8" onclick="saveConfig()">保存して接続</button>
-  </div>
-</div>
 
 <script>
 // ===== Firebase Config =====
-const CONFIG_KEY = "dispatch_firebase_config";
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCkETt4udtIV",
+  authDomain: "haisha-fd5a6.firebaseapp.com",
+  databaseURL: "https://haisha-fd5a6-default-rtdb.firebaseio.com",
+  projectId: "haisha-fd5a6",
+  storageBucket: "haisha-fd5a6.appspot.com",
+  messagingSenderId: "217424745404",
+  appId: "1:217424745404:web:485ca0f1649583927dd1b9",
+  measurementId: "G-9QDNBRVY"
+};
+
 let db = null;
 let currentRoom = "";
 let dbRef = null;
 let isRemoteUpdate = false;
-
-function getStoredConfig() {
-  try { return JSON.parse(localStorage.getItem(CONFIG_KEY)); } catch { return null; }
-}
 
 function initFirebase(config) {
   try {
@@ -244,21 +221,6 @@ function initFirebase(config) {
   }
 }
 
-function saveConfig() {
-  const raw = document.getElementById("configInput").value.trim();
-  try {
-    const config = JSON.parse(raw);
-    if (!config.databaseURL) throw new Error("databaseURL is required");
-    localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
-    if (initFirebase(config)) {
-      document.getElementById("setupOverlay").style.display = "none";
-      subscribeRoom(currentRoom);
-      showToast("Firebase接続完了");
-    }
-  } catch (e) {
-    showToast("設定が正しくありません: " + e.message, "error");
-  }
-}
 
 function setSyncStatus(status) {
   const el = document.getElementById("syncBadge");
@@ -625,19 +587,11 @@ function esc(s) { const d = document.createElement("div"); d.textContent = s; re
   document.getElementById("roomDate").value = currentRoom;
   location.hash = "room=" + currentRoom;
 
-  // Firebase設定チェック
-  const config = getStoredConfig();
-  if (config) {
-    if (initFirebase(config)) {
-      subscribeRoom(currentRoom);
-    } else {
-      document.getElementById("setupOverlay").style.display = "flex";
-    }
+  // Firebase直接接続
+  if (initFirebase(FIREBASE_CONFIG)) {
+    subscribeRoom(currentRoom);
   } else {
-    // Firebase未設定 - 設定画面表示
-    document.getElementById("setupOverlay").style.display = "flex";
     setSyncStatus("disconnected");
-    // localStorageフォールバックで描画
     subscribeRoom(currentRoom);
   }
 })();
