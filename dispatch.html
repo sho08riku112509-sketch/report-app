@@ -102,9 +102,10 @@ textarea{width:100%;padding:10px 12px;background:var(--input-bg);border:1px soli
  <div class="modal">
   <h2>内容登録</h2>
   <div style="display:flex;gap:6px;margin-bottom:8px">
-   <input id="masterZip" class="input" placeholder="郵便番号" style="flex:1;font-size:14px">
+   <input id="masterZip" class="input" placeholder="郵便番号" style="flex:1;font-size:14px" inputmode="numeric" pattern="[0-9]*">
    <input id="masterName" class="input" placeholder="苗字" style="flex:1;font-size:14px">
   </div>
+  <input id="masterContent" class="input" placeholder="内容（例: r2.n1）" style="margin-bottom:8px;font-size:14px">
   <div style="display:flex;gap:6px;margin-bottom:16px">
    <select id="masterArea" class="input" style="font-size:14px"></select>
    <button class="btn btn-primary" style="padding:12px 24px;font-size:15px" onclick="addMaster()">登録する</button>
@@ -231,9 +232,10 @@ function closeMasterModal(){document.getElementById("masterModal").style.display
 function addMaster(){
   var zip=document.getElementById("masterZip").value.trim();
   var name=document.getElementById("masterName").value.trim();
+  var content=document.getElementById("masterContent").value.trim();
   var area=document.getElementById("masterArea").value;
   if(!name){showToast("苗字を入力してください","error");return}
-  var item={id:genId(),zip:zip,name:name,area:area};
+  var item={id:genId(),zip:zip,name:name,content:content,area:area};
   if(db&&masterRef){
     masterRef.child(item.id).set(item);
   }else{
@@ -242,6 +244,7 @@ function addMaster(){
   }
   document.getElementById("masterZip").value="";
   document.getElementById("masterName").value="";
+  document.getElementById("masterContent").value="";
   showToast(name+" を登録しました");
   renderMasterList();
 }
@@ -264,7 +267,8 @@ function renderMasterList(){
   el.innerHTML=masters.map(function(m){
     return '<div class="master-item"><div class="info">'
       +(m.zip?'<span class="zip">〒'+esc(m.zip)+'</span> ':'')
-      +'<span class="mname">'+esc(m.name||m.detail||"")+'</span>'
+      +'<span class="mname">'+esc(m.name||"")+'</span>'
+      +(m.content?' <span style="color:var(--text-sub);font-size:12px">'+esc(m.content)+'</span>':'')
       +' <span style="color:var(--text-muted);font-size:11px">['+esc(m.area)+']</span>'
       +'</div><button class="remove-btn" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px" onclick="removeMaster(\''+m.id+'\')">×</button></div>';
   }).join("");
@@ -383,12 +387,28 @@ function showSuggestions(){
   wrap.style.display="block";
   wrap.innerHTML=filtered.map(function(m){
     var label=m.name||m.detail||"";
-    return '<div class="dest-suggest-item" onmousedown="pickDest(\''+esc(label).replace(/'/g,"\\'")+'\')">'
-      +(m.zip?'<span class="sub" style="margin-right:8px">〒'+esc(m.zip)+'</span>':'')+esc(label)+'</div>';
+    var cnt=m.content||"";
+    return '<div class="dest-suggest-item" onmousedown="pickDest(\''+esc(label).replace(/'/g,"\\'")+'\',\''+esc(cnt).replace(/'/g,"\\'")+'\')">'
+      +(m.zip?'<span class="sub" style="margin-right:8px">〒'+esc(m.zip)+'</span>':'')
+      +esc(label)
+      +(cnt?' <span class="sub">'+esc(cnt)+'</span>':'')
+      +'</div>';
   }).join("");
 }
 function hideSuggestions(){setTimeout(function(){var w=document.getElementById("destSuggestions");if(w)w.style.display="none"},200)}
-function pickDest(d){document.getElementById("destInput").value=d;hideSuggestions()}
+function pickDest(d,content){
+  document.getElementById("destInput").value=d;
+  hideSuggestions();
+  if(content){
+    var parts=content.split(".");
+    cargoItems=parts.map(function(p){
+      var m=p.match(/^(r|n|rf)(\d+)$/);
+      return m?{type:m[1],num:parseInt(m[2])}:{type:"r",num:1};
+    });
+    if(cargoItems.length===0)cargoItems=[{type:"r",num:1}];
+    renderForm();
+  }
+}
 
 function showAddDriver(){
   var name=prompt("ドライバー名を入力");
