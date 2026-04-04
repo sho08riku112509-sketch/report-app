@@ -339,7 +339,7 @@ function renderForm(){
     // Trip number
     html+='<div style="font-size:12px;color:var(--text-sub);margin-bottom:4px">便番号</div>';
     html+='<div class="trip-btns">';
-    for(let i=1;i<=8;i++){html+='<div class="trip-btn'+(tripNum===i?' active':'')+'" onclick="setTripNum('+i+')">'+i+'</div>'}
+    [1,2,3,4,6].forEach(i=>{html+='<div class="trip-btn'+(tripNum===i?' active':'')+'" onclick="setTripNum('+i+')">'+i+'</div>'})
     html+='</div>';
     // Destination
     html+='<div style="font-size:12px;color:var(--text-sub);margin-bottom:4px">行き先</div>';
