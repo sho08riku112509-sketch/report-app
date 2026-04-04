@@ -113,16 +113,15 @@ textarea{width:100%;padding:10px 12px;background:var(--input-bg);border:1px soli
     <input id="masterZip" class="input" placeholder="郵便番号" style="flex:1;font-size:14px" inputmode="numeric" pattern="[0-9]*">
     <input id="masterName" class="input" placeholder="苗字" style="flex:1;font-size:14px">
    </div>
-   <input id="masterContent" class="input" placeholder="内容（例: r2.n1）" style="margin-bottom:8px;font-size:14px">
+   <input id="masterContent" class="input" placeholder="内容" style="margin-bottom:8px;font-size:14px">
    <div style="display:flex;gap:6px;margin-bottom:16px">
     <select id="masterArea" class="input" style="font-size:14px"></select>
     <button class="btn btn-primary" style="padding:12px 24px;font-size:15px" onclick="addMaster()">登録する</button>
    </div>
   </div>
   <div id="masterBulkForm" style="display:none">
-   <div style="font-size:12px;color:var(--text-sub);margin-bottom:6px;line-height:1.6">1行に1件、スペース区切りで入力<br>形式: <span style="color:var(--accent)">郵便番号 苗字 内容</span><br>例:</div>
-   <div style="background:var(--input-bg);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text-sub);margin-bottom:8px;font-family:monospace;line-height:1.8">510 田中 r2.n1<br>511 鈴木 rf1<br>460 佐藤 n2</div>
-   <textarea id="masterBulkInput" style="margin-bottom:8px;min-height:140px;font-size:14px;line-height:1.8" placeholder="510 田中 r2.n1&#10;511 鈴木 rf1&#10;460 佐藤 n2"></textarea>
+   <div style="font-size:12px;color:var(--text-sub);margin-bottom:8px">1行に1件、スペース区切り: 郵便番号 苗字 内容</div>
+   <textarea id="masterBulkInput" style="margin-bottom:8px;min-height:140px;font-size:14px;line-height:1.8"></textarea>
    <div style="display:flex;gap:6px;margin-bottom:16px">
     <select id="masterBulkArea" class="input" style="font-size:14px"></select>
     <button class="btn btn-primary" style="padding:12px 24px;font-size:15px" onclick="addMasterBulk()">まとめて登録</button>
@@ -522,7 +521,7 @@ function renderForm(){
   html+='<button class="btn btn-ghost btn-sm" onclick="toggleBulk()">'+(showBulk?'フォーム入力':'まとめて入力')+'</button>';
   html+='</div>';
   if(showBulk){
-    html+='<textarea id="bulkInput" placeholder="例:\n1便 四日市アマがスカ r1\n3便 四日市大谷地 rf1"></textarea>';
+    html+='<textarea id="bulkInput" placeholder=""></textarea>';
     html+='<button class="btn btn-primary btn-block" style="margin-top:8px" onclick="addBulkRoutes()">追加</button>';
   }else{
     html+='<div style="font-size:12px;color:var(--text-sub);margin-bottom:4px">便番号</div>';
@@ -530,7 +529,7 @@ function renderForm(){
     [1,2,3,4,6].forEach(function(i){html+='<div class="trip-btn'+(tripNum===i?' active':'')+'" onclick="setTripNum('+i+')">'+i+'</div>'});
     html+='</div>';
     html+='<div style="font-size:12px;color:var(--text-sub);margin-bottom:4px">行き先</div>';
-    html+='<div class="dest-input-wrap"><input id="destInput" class="input" placeholder="例: 四日市アマがスカ" oninput="showSuggestions()" onfocus="showSuggestions()" onblur="hideSuggestions()" autocomplete="off"><div id="destSuggestions" class="dest-suggestions" style="display:none"></div></div>';
+    html+='<div class="dest-input-wrap"><input id="destInput" class="input" placeholder="行き先" oninput="showSuggestions()" onfocus="showSuggestions()" onblur="hideSuggestions()" autocomplete="off"><div id="destSuggestions" class="dest-suggestions" style="display:none"></div></div>';
     html+='<div style="font-size:12px;color:var(--text-sub);margin-bottom:4px">荷物</div>';
     html+='<div class="cargo-section">';
     cargoItems.forEach(function(c,i){
@@ -543,7 +542,7 @@ function renderForm(){
     });
     html+='</div>';
     html+='<div style="font-size:12px;color:var(--text-sub);margin-bottom:4px;margin-top:6px">備考</div>';
-    html+='<input id="noteInput" class="input" placeholder="例: 午前指定、要TEL等" style="font-size:14px;margin-bottom:10px">';
+    html+='<input id="noteInput" class="input" placeholder="備考" style="font-size:14px;margin-bottom:10px">';
     html+='<div style="font-size:12px;color:var(--text-sub);margin-bottom:6px">追加内容: <span style="color:var(--accent);font-weight:700">'+tripNum+'便 ... '+cargoItems.map(function(c){return c.type+c.num}).join(".")+'</span></div>';
     html+='<button class="btn btn-primary btn-block" style="padding:14px;font-size:16px" onclick="addRouteFromForm()">追加</button>';
   }
