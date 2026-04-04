@@ -118,6 +118,7 @@ const defaultForm = {
   partnerIsTrainee: [],
   traineeMode: false,
   traineeName: "",
+  traineeAmount: "",
   // ③ 日延べ
   hinobe: [],
 };
@@ -220,6 +221,15 @@ export default function App() {
     const hasTrainee = (form.partnerIsTrainee || []).some((v, i) => v && form.partnerNames[i]?.trim());
     if (!hasTrainee) return 0;
     return Math.round(total * parseFloat(settings.myPercent) / 100 * 0.25);
+  })();
+
+  // 研修モード時の自分の日当 = 同行者の売上 × 同行者の% × 25%
+  const traineeModeDailyPay = (() => {
+    if (!form.traineeMode || !form.traineeAmount || !form.traineeName) return 0;
+    const traineeStaff = settings.staff.find((s) => s.name === form.traineeName.trim());
+    const traineePercent = traineeStaff?.percent ? parseFloat(traineeStaff.percent) : 0;
+    if (!traineePercent) return 0;
+    return Math.round(formatNum(form.traineeAmount) * traineePercent / 100 * 0.25);
   })();
 
   // ③ 日延べテキスト生成（共通）
@@ -815,8 +825,8 @@ function res(obj) {
                 active={form.traineeMode}
                 onClick={() => setForm((f) => {
                   const next = !f.traineeMode;
-                  return { ...f, traineeMode: next, traineeName: "", ...(next ? { manCount: 2 } : {}) };
-                })}}
+                  return { ...f, traineeMode: next, traineeName: "", traineeAmount: "", ...(next ? { manCount: 2 } : {}) };
+                })}
                 t={t}
               />
             </div>
@@ -859,14 +869,33 @@ function res(obj) {
                 </div>
               </Row>
               {form.traineeMode && (
-                <Row label={<>同行者<Req /></>} t={t}>
-                  <Input
-                    value={form.traineeName}
-                    onChange={(v) => setForm((f) => ({ ...f, traineeName: v }))}
-                    placeholder="例：米田有佑"
-                    t={t}
-                  />
-                </Row>
+                <>
+                  <Row label={<>同行者<Req /></>} t={t}>
+                    <Input
+                      value={form.traineeName}
+                      onChange={(v) => setForm((f) => ({ ...f, traineeName: v }))}
+                      placeholder="例：米田有佑"
+                      t={t}
+                    />
+                  </Row>
+                  <Row label="同行者の売上" t={t}>
+                    <MoneyInput
+                      value={form.traineeAmount}
+                      onChange={(v) => setForm((f) => ({ ...f, traineeAmount: v }))}
+                      t={t}
+                    />
+                  </Row>
+                  {traineeModeDailyPay > 0 && (
+                    <div style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      padding: "8px 12px", marginTop: 4, background: t.card,
+                      borderRadius: 8, border: `1px solid ${t.cardBorder}`,
+                    }}>
+                      <span style={{ fontSize: 13, color: t.textSub }}>自分の日当</span>
+                      <span style={{ fontSize: 18, fontWeight: 900, color: t.accent }}>¥{traineeModeDailyPay.toLocaleString()}</span>
+                    </div>
+                  )}
+                </>
               )}
             </Section>
 
@@ -1329,16 +1358,22 @@ function res(obj) {
             )}
 
             {/* 日当 */}
-            {!form.traineeMode && (myDailyPay > 0 || traineeDailyPay > 0) && (
+            {((!form.traineeMode && (myDailyPay > 0 || traineeDailyPay > 0)) || (form.traineeMode && traineeModeDailyPay > 0)) && (
               <div style={{ background: t.card, borderRadius: 12, padding: "16px", border: `1px solid ${t.cardBorder}` }}>
                 <div style={{ fontSize: 11, color: t.accent, fontWeight: 700, letterSpacing: 2, marginBottom: 12 }}>
                   日当計算
                 </div>
-                {myDailyPay > 0 && (
-                  <ConfirmRow label="自分の日当" value={`¥${myDailyPay.toLocaleString()}`} t={t} />
-                )}
-                {traineeDailyPay > 0 && (
-                  <ConfirmRow label="助手の日当" value={`¥${traineeDailyPay.toLocaleString()}`} t={t} />
+                {form.traineeMode ? (
+                  <ConfirmRow label="自分の日当" value={`¥${traineeModeDailyPay.toLocaleString()}`} t={t} />
+                ) : (
+                  <>
+                    {myDailyPay > 0 && (
+                      <ConfirmRow label="自分の日当" value={`¥${myDailyPay.toLocaleString()}`} t={t} />
+                    )}
+                    {traineeDailyPay > 0 && (
+                      <ConfirmRow label="助手の日当" value={`¥${traineeDailyPay.toLocaleString()}`} t={t} />
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -1471,7 +1506,7 @@ function res(obj) {
             </div>
 
             {/* 日当表示 */}
-            {!isAbsence && !form.traineeMode && (myDailyPay > 0 || traineeDailyPay > 0) && (
+            {!isAbsence && ((!form.traineeMode && (myDailyPay > 0 || traineeDailyPay > 0)) || (form.traineeMode && traineeModeDailyPay > 0)) && (
               <div style={{
                 background: t.card, border: `1px solid ${t.cardBorder}`,
                 borderRadius: 12, padding: "16px",
@@ -1479,17 +1514,28 @@ function res(obj) {
                 <div style={{ fontSize: 11, color: t.accent, fontWeight: 700, letterSpacing: 2, marginBottom: 12 }}>
                   日当計算
                 </div>
-                {myDailyPay > 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                    <span style={{ fontSize: 14, color: t.textSub }}>自分の日当</span>
-                    <span style={{ fontSize: 20, fontWeight: 900, color: t.accent }}>¥{myDailyPay.toLocaleString()}</span>
-                  </div>
-                )}
-                {traineeDailyPay > 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 14, color: t.textSub }}>助手の日当</span>
-                    <span style={{ fontSize: 20, fontWeight: 900 }}>¥{traineeDailyPay.toLocaleString()}</span>
-                  </div>
+                {form.traineeMode ? (
+                  traineeModeDailyPay > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: 14, color: t.textSub }}>自分の日当</span>
+                      <span style={{ fontSize: 20, fontWeight: 900, color: t.accent }}>¥{traineeModeDailyPay.toLocaleString()}</span>
+                    </div>
+                  )
+                ) : (
+                  <>
+                    {myDailyPay > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                        <span style={{ fontSize: 14, color: t.textSub }}>自分の日当</span>
+                        <span style={{ fontSize: 20, fontWeight: 900, color: t.accent }}>¥{myDailyPay.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {traineeDailyPay > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 14, color: t.textSub }}>助手の日当</span>
+                        <span style={{ fontSize: 20, fontWeight: 900 }}>¥{traineeDailyPay.toLocaleString()}</span>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
