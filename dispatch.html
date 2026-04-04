@@ -6,6 +6,7 @@
 <title>配車表</title>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#0f0f0f;--card:#1a1a1a;--card-border:#2a2a2a;--accent:#ff6b00;--accent2:#ff9500;--text:#f0f0f0;--text-sub:#888;--text-muted:#555;--input-bg:#111;--input-border:#333;--success-bg:#0f3a1a;--success-text:#4ade80;--error-bg:#3a0f0f;--error-text:#f87171;--warn-text:#fbbf24}
@@ -486,8 +487,11 @@ function render(){
   app.innerHTML=html;
 }
 
-// ===== My Name & Notifications =====
+// ===== My Name & Push Notifications (FCM) =====
 var MY_NAME_KEY="dispatch_myname";
+var FCM_TOKEN_KEY="dispatch_fcm_token";
+var VAPID_KEY=""; // Firebase Console > プロジェクト設定 > Cloud Messaging > ウェブプッシュ証明書のキーをここに貼る
+var fcmMessaging=null;
 var prevRoutes=null;
 
 function getMyName(){return localStorage.getItem(MY_NAME_KEY)||""}
@@ -513,19 +517,32 @@ function saveMyName(){
   updateMyNameBtn();
   closeMyNameModal();
   showToast(name+"で登録しました");
-  requestNotificationPermission();
+  setupFCM(name);
 }
 
-function requestNotificationPermission(){
-  if(!("Notification" in window))return;
-  if(Notification.permission==="default"){
-    Notification.requestPermission();
-  }
+function setupFCM(userName){
+  if(!("serviceWorker" in navigator)||!firebase.messaging)return;
+  try{
+    fcmMessaging=firebase.messaging();
+    navigator.serviceWorker.register("/firebase-messaging-sw.js").then(function(reg){
+      fcmMessaging.getToken({vapidKey:VAPID_KEY,serviceWorkerRegistration:reg}).then(function(token){
+        if(token){
+          localStorage.setItem(FCM_TOKEN_KEY,token);
+          if(db)db.ref("fcmTokens/"+encodeURIComponent(userName)).set({token:token,name:userName,updatedAt:Date.now()});
+          console.log("FCM token saved");
+        }
+      }).catch(function(e){console.log("FCM token error:",e)});
+      fcmMessaging.onMessage(function(payload){
+        var n=payload.notification||{};
+        showToast(n.title||n.body||"通知");
+      });
+    });
+  }catch(e){console.log("FCM setup error:",e)}
 }
 
 function sendNotification(title,body){
   if(!("Notification" in window)||Notification.permission!=="granted")return;
-  try{new Notification(title,{body:body,icon:"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚚</text></svg>"})}catch(e){console.log("Notification error:",e)}
+  try{new Notification(title,{body:body})}catch(e){}
 }
 
 function checkRouteChanges(newRoutes){
@@ -535,20 +552,18 @@ function checkRouteChanges(newRoutes){
   var myDriverId=null;
   drivers.forEach(function(d){if(d.name===myName)myDriverId=d.id});
   if(!myDriverId){prevRoutes=newRoutes.slice();return}
-  // Check new routes added
   var oldIds={};prevRoutes.forEach(function(r){oldIds[r.id]=r});
   var newAdded=newRoutes.filter(function(r){return!oldIds[r.id]});
   if(newAdded.length>0){
     sendNotification("新しい便が追加されました",newAdded.map(function(r){return r.tripNum+"便 "+r.destination+" "+r.cargo}).join(", "));
   }
-  // Check routes assigned to me
   var newAssigned=newRoutes.filter(function(r){
     if(r.driverId!==myDriverId)return false;
     var old=oldIds[r.id];
     return!old||old.driverId!==myDriverId;
   });
   if(newAssigned.length>0){
-    sendNotification("配車されました！",newAssigned.map(function(r){return r.tripNum+"便 "+r.destination+" "+r.cargo}).join(", "));
+    sendNotification("割り当てられました！",newAssigned.map(function(r){return r.tripNum+"便 "+r.destination+" "+r.cargo}).join(", "));
   }
   prevRoutes=newRoutes.slice();
 }
@@ -559,7 +574,7 @@ document.getElementById("roomDate").value=currentRoom;
 location.hash="room="+currentRoom;
 initFirebase();
 updateMyNameBtn();
-if(getMyName())requestNotificationPermission();
+if(getMyName())setupFCM(getMyName());
 subscribeRoom(currentRoom);
 window.addEventListener("hashchange",function(){var r=getRoomFromHash();if(r&&r!==currentRoom)switchRoom(r)});
 </script>
