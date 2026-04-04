@@ -210,9 +210,11 @@ function addRouteFromForm(){
   if(!dest){showToast("行き先を入力してください","error");return}
   const cargo=cargoItems.map(c=>c.type+c.num).join(".");
   if(!cargo){showToast("荷物を設定してください","error");return}
-  routes.push({id:genId(),tripNum,destination:dest,cargo,area:currentArea,driverId:null});
+  const noteEl=document.getElementById("noteInput");
+  const note=noteEl?noteEl.value.trim():"";
+  routes.push({id:genId(),tripNum,destination:dest,cargo,area:currentArea,driverId:null,note});
   saveDest(currentArea,dest);
-  save();destEl.value="";
+  save();destEl.value="";if(noteEl)noteEl.value="";
   hideSuggestions();
   showToast(tripNum+"便 "+dest+" "+cargo+" を追加");
   render();
@@ -357,6 +359,9 @@ function renderForm(){
     });
     html+='</div>';
     // Preview & Add
+    // 備考
+    html+='<div style="font-size:12px;color:var(--text-sub);margin-bottom:4px;margin-top:6px">備考</div>';
+    html+='<input id="noteInput" class="input" placeholder="例: 午前指定、要TEL等" style="font-size:14px;margin-bottom:10px">';
     html+='<div style="font-size:12px;color:var(--text-sub);margin-bottom:6px">追加内容: <span style="color:var(--accent);font-weight:700">'+tripNum+'便 ... '+cargoItems.map(c=>c.type+c.num).join(".")+'</span></div>';
     html+='<button class="btn btn-primary btn-block" style="padding:14px;font-size:16px" onclick="addRouteFromForm()">追加</button>';
   }
@@ -388,7 +393,7 @@ function render(){
       const sel=selectedRoutes.has(r.id);
       html+='<div class="route-item'+(sel?' selected':'')+'" onclick="toggleSelect(\''+r.id+'\')">';
       html+='<span class="trip-num">'+r.tripNum+'便</span>';
-      html+='<span class="dest">'+esc(r.destination)+'</span>';
+      html+='<span class="dest">'+esc(r.destination)+(r.note?'<span style="font-size:11px;color:var(--warn-text);margin-left:4px">'+esc(r.note)+'</span>':'')+'</span>';
       html+='<span class="cargo">'+esc(r.cargo)+'</span>';
       html+='<button class="remove-btn" onclick="event.stopPropagation();removeRoute(\''+r.id+'\')">×</button>';
       html+='</div>';
@@ -407,7 +412,7 @@ function render(){
       dr.forEach(r=>{
         html+='<div class="route-item" style="cursor:default">';
         html+='<span class="trip-num">'+r.tripNum+'便</span>';
-        html+='<span class="dest">'+esc(r.destination)+'</span>';
+        html+='<span class="dest">'+esc(r.destination)+(r.note?'<span style="font-size:11px;color:var(--warn-text);margin-left:4px">'+esc(r.note)+'</span>':'')+'</span>';
         html+='<span class="cargo">'+esc(r.cargo)+'</span>';
         html+='<button class="unassign-btn" onclick="unassignRoute(\''+r.id+'\')">戻す</button>';
         html+='<button class="remove-btn" onclick="removeRoute(\''+r.id+'\')">×</button>';
