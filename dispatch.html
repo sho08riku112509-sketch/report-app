@@ -111,10 +111,11 @@ textarea{width:100%;padding:10px 12px;background:var(--input-bg);border:1px soli
   <div id="masterSingleForm">
    <div style="font-size:12px;color:var(--text-sub);margin-bottom:4px">便番号</div>
    <div class="trip-btns" id="masterTripBtns" style="margin-bottom:10px"></div>
-   <div style="display:flex;gap:6px;margin-bottom:8px">
-    <input id="masterZip" class="input" placeholder="郵便番号" style="flex:1;font-size:14px" inputmode="numeric" pattern="[0-9]*">
+   <div style="display:flex;gap:6px;margin-bottom:4px">
+    <input id="masterZip" class="input" placeholder="郵便番号" style="flex:1;font-size:14px" inputmode="numeric" pattern="[0-9]*" oninput="lookupZip(this.value)">
     <input id="masterName" class="input" placeholder="苗字" style="flex:1;font-size:14px">
    </div>
+   <div id="zipResult" style="font-size:12px;color:var(--text-sub);margin-bottom:8px;min-height:16px"></div>
    <input id="masterContent" class="input" placeholder="内容" style="margin-bottom:8px;font-size:14px">
    <input id="masterNote" class="input" placeholder="備考" style="margin-bottom:8px;font-size:14px">
    <div style="display:flex;gap:6px;margin-bottom:16px">
@@ -236,6 +237,29 @@ function save(){
   }
   localStorage.setItem("dr_"+currentRoom,JSON.stringify(routes));
   localStorage.setItem("dd_"+currentRoom,JSON.stringify(drivers));
+}
+
+// ===== 郵便番号検索 =====
+var zipTimer=null;
+function lookupZip(val){
+  var el=document.getElementById("zipResult");
+  val=val.replace(/[^0-9]/g,"");
+  if(val.length<3){el.textContent="";return}
+  if(zipTimer)clearTimeout(zipTimer);
+  zipTimer=setTimeout(function(){
+    fetch("https://zipcloud.ibsnet.co.jp/api/search?zipcode="+val)
+      .then(function(r){return r.json()})
+      .then(function(data){
+        if(data.results&&data.results.length>0){
+          var r=data.results[0];
+          el.textContent="〒"+r.zipcode+" "+r.address1+r.address2+r.address3;
+          el.style.color="var(--success-text)";
+        }else{
+          el.textContent=val.length>=7?"該当なし":"";
+          el.style.color="var(--text-sub)";
+        }
+      }).catch(function(){el.textContent=""});
+  },300);
 }
 
 // ===== 内容登録（ルート追加） =====
